@@ -3,14 +3,18 @@ import { SectionEyebrow } from "@game/ui/section-eyebrow";
 
 type GameGridSectionProps = {
   games: GameCard[];
+  labels: {
+    eyebrow: string;
+    title: string;
+  };
 };
 
-export function GameGridSection({ games }: GameGridSectionProps) {
+export function GameGridSection({ games, labels }: GameGridSectionProps) {
   return (
     <section className="panel-section" id="game-matrix">
       <div className="section-heading">
-        <SectionEyebrow label="Game Matrix" />
-        <h2>游戏矩阵先用占位卡撑起版式，后面直接替换文案和封面。</h2>
+        <SectionEyebrow label={labels.eyebrow} />
+        <h2>{labels.title}</h2>
       </div>
 
       <div className="game-grid">

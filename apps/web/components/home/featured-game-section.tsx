@@ -1,17 +1,34 @@
 import type { FeaturedGame } from "@game/content";
 import { ShellButton } from "@game/ui/shell-button";
 import { SectionEyebrow } from "@game/ui/section-eyebrow";
+import { getLocalizedPath, type SiteLocale } from "../../lib/i18n/config";
 
 type FeaturedGameSectionProps = {
+  locale: SiteLocale;
   game: FeaturedGame;
+  labels: {
+    eyebrow: string;
+    title: string;
+  };
 };
 
-export function FeaturedGameSection({ game }: FeaturedGameSectionProps) {
+export function FeaturedGameSection({
+  locale,
+  game,
+  labels,
+}: FeaturedGameSectionProps) {
+  const primaryHref = game.primaryCta.href.startsWith("/")
+    ? getLocalizedPath(locale, game.primaryCta.href)
+    : game.primaryCta.href;
+  const secondaryHref = game.secondaryCta.href.startsWith("/")
+    ? getLocalizedPath(locale, game.secondaryCta.href)
+    : game.secondaryCta.href;
+
   return (
     <section className="panel-section" id="featured-game">
       <div className="section-heading">
-        <SectionEyebrow label="Featured Game" />
-        <h2>主推游戏位已预留，等你填入第一款核心作品。</h2>
+        <SectionEyebrow label={labels.eyebrow} />
+        <h2>{labels.title}</h2>
       </div>
 
       <article className="feature-panel">
@@ -25,10 +42,10 @@ export function FeaturedGameSection({ game }: FeaturedGameSectionProps) {
             ))}
           </div>
           <div className="feature-actions">
-            <ShellButton href={game.primaryCta.href} variant="primary">
+            <ShellButton href={primaryHref} variant="primary">
               {game.primaryCta.label}
             </ShellButton>
-            <ShellButton href={game.secondaryCta.href} variant="secondary">
+            <ShellButton href={secondaryHref} variant="secondary">
               {game.secondaryCta.label}
             </ShellButton>
           </div>

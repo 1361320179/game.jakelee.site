@@ -3,14 +3,18 @@ import { SectionEyebrow } from "@game/ui/section-eyebrow";
 
 type DevlogSectionProps = {
   entries: DevlogEntry[];
+  labels: {
+    eyebrow: string;
+    title: string;
+  };
 };
 
-export function DevlogSection({ entries }: DevlogSectionProps) {
+export function DevlogSection({ entries, labels }: DevlogSectionProps) {
   return (
     <section className="panel-section" id="devlog">
       <div className="section-heading">
-        <SectionEyebrow label="Devlog" />
-        <h2>开发日志区域先保留成终端记录板，后续直接接你的内容。</h2>
+        <SectionEyebrow label={labels.eyebrow} />
+        <h2>{labels.title}</h2>
       </div>
 
       <div className="devlog-board">

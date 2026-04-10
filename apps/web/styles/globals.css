@@ -938,12 +938,6 @@ html.game-play-active body {
   }
 }
 
-@media (orientation: landscape) {
-  .game-portrait-hint {
-    display: none;
-  }
-}
-
 /* Home — Shadow Dash promo: cover art + playable links */
 .hero-preview.hero-preview--game {
   text-decoration: none;

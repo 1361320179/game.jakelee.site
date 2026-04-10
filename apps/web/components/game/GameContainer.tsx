@@ -14,9 +14,40 @@ function isTouchLike(): boolean {
   if (typeof window === "undefined") return false;
   return (
     "ontouchstart" in window ||
+    navigator.maxTouchPoints > 0 ||
     window.matchMedia("(pointer: coarse)").matches ||
     window.matchMedia("(hover: none)").matches
   );
+}
+
+/**
+ * Reliable portrait detection on mobile: many browsers mis-report
+ * `(orientation: portrait)` vs visual viewport during chrome UI / rotation.
+ */
+function readIsPortrait(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const type = screen.orientation?.type ?? "";
+  if (type.includes("landscape")) return false;
+  if (type.includes("portrait")) return true;
+
+  const legacy = (window as Window & { orientation?: number }).orientation;
+  if (legacy === 90 || legacy === -90) return false;
+  if (legacy === 0 || legacy === 180) return true;
+
+  const vv = window.visualViewport;
+  let w = vv?.width ?? window.innerWidth;
+  let h = vv?.height ?? window.innerHeight;
+
+  if (w <= 1 || h <= 1) {
+    w = window.screen?.width ?? w;
+    h = window.screen?.height ?? h;
+  }
+
+  if (w > h) return false;
+  if (h > w) return true;
+
+  return window.matchMedia("(orientation: portrait)").matches;
 }
 
 async function tryEnterFullscreen(el: HTMLElement | null): Promise<void> {
@@ -72,9 +103,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
   const syncPortraitHint = useCallback(() => {
     if (typeof window === "undefined") return;
-    const portrait = window.matchMedia("(orientation: portrait)").matches;
+    const portrait = readIsPortrait();
     setPortraitHint(portrait && isTouchLike());
   }, []);
+
+  /** After rotation, dimensions often update one frame late (iOS / Chrome). */
+  const scheduleSyncPortraitHint = useCallback(() => {
+    syncPortraitHint();
+    requestAnimationFrame(() => {
+      syncPortraitHint();
+      requestAnimationFrame(syncPortraitHint);
+    });
+    window.setTimeout(syncPortraitHint, 120);
+    window.setTimeout(syncPortraitHint, 350);
+  }, [syncPortraitHint]);
 
   useEffect(() => {
     document.documentElement.classList.add("game-play-active");
@@ -84,16 +126,27 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   }, []);
 
   useEffect(() => {
-    syncPortraitHint();
+    scheduleSyncPortraitHint();
+
     const mq = window.matchMedia("(orientation: portrait)");
-    const onChange = () => syncPortraitHint();
-    mq.addEventListener("change", onChange);
-    window.addEventListener("resize", onChange);
+    const onMq = () => scheduleSyncPortraitHint();
+    mq.addEventListener("change", onMq);
+
+    window.addEventListener("resize", scheduleSyncPortraitHint);
+    window.addEventListener("orientationchange", scheduleSyncPortraitHint);
+
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", scheduleSyncPortraitHint);
+    vv?.addEventListener("scroll", scheduleSyncPortraitHint);
+
     return () => {
-      mq.removeEventListener("change", onChange);
-      window.removeEventListener("resize", onChange);
+      mq.removeEventListener("change", onMq);
+      window.removeEventListener("resize", scheduleSyncPortraitHint);
+      window.removeEventListener("orientationchange", scheduleSyncPortraitHint);
+      vv?.removeEventListener("resize", scheduleSyncPortraitHint);
+      vv?.removeEventListener("scroll", scheduleSyncPortraitHint);
     };
-  }, [syncPortraitHint]);
+  }, [scheduleSyncPortraitHint]);
 
   useEffect(() => {
     let cancelled = false;

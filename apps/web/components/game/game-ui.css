@@ -8,6 +8,10 @@
   flex-direction: column;
   justify-content: space-between;
   padding: clamp(12px, 2.2vw, 22px);
+  padding-top: max(clamp(12px, 2.2vw, 22px), env(safe-area-inset-top, 0px));
+  padding-right: max(clamp(12px, 2.2vw, 22px), env(safe-area-inset-right, 0px));
+  padding-bottom: max(clamp(12px, 2.2vw, 22px), env(safe-area-inset-bottom, 0px));
+  padding-left: max(clamp(12px, 2.2vw, 22px), env(safe-area-inset-left, 0px));
   pointer-events: none;
   color: #1b2b3a;
   font-family: var(--font-fredoka), system-ui, sans-serif;

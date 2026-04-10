@@ -158,6 +158,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     let unmountFn: (() => void) | null = null;
 
     const initGame = async () => {
+      // Pixi 横版游戏：包内自管画布与物理，经回调同步冲刺冷却等
       if (slug === "shadow-dash") {
         const { mountGame, unmountGame } = await import("@game/shadow-dash");
         if (cancelled) return;

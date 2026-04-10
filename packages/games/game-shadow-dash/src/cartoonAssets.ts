@@ -1,9 +1,14 @@
+/**
+ * Shadow Dash 卡通风格矢量素材：天空、地形、机关与玩家均由 Graphics 绘制。
+ * 配色集中在 C 对象，便于统一调整画风。
+ */
 import { Container, Graphics } from "pixi.js";
 
-/** Hitbox matches gameplay collision */
+/** 玩家碰撞盒宽高，须与 Game 中物理判定一致 */
 export const PLAYER_W = 28;
 export const PLAYER_H = 32;
 
+/** 主题色板（天空、地形、尖刺、门、角色等） */
 const C = {
   skyTop: 0x7dd3fc,
   skyBottom: 0xb8e9ff,
@@ -30,6 +35,7 @@ const C = {
   dashTrail: 0x40e0d0,
 };
 
+/** 纵向渐变天空条带，宽度覆盖关卡并留边距；含柔和太阳 */
 export function createSkyStrip(levelWidth: number, levelHeight: number): Graphics {
   const g = new Graphics();
   const pad = 800;
@@ -46,12 +52,13 @@ export function createSkyStrip(levelWidth: number, levelHeight: number): Graphic
     const y1 = ((i + 1) / steps) * h;
     g.rect(-pad, y0, w, y1 - y0 + 1).fill(color);
   }
-  // soft sun
+  // 柔和太阳光晕
   g.circle(levelWidth * 0.35, 120, 72).fill({ color: 0xfff59d, alpha: 0.55 });
   g.circle(levelWidth * 0.35, 120, 48).fill({ color: 0xffecb3, alpha: 0.7 });
   return g;
 }
 
+/** 一朵装饰云，原点为局部坐标，由调用方 set position */
 export function createCloudPuff(x: number, y: number, scale: number): Graphics {
   const g = new Graphics();
   const s = scale;
@@ -63,6 +70,7 @@ export function createCloudPuff(x: number, y: number, scale: number): Graphics {
   return g;
 }
 
+/** 远景双层丘陵轮廓，baseY 由关卡地面高度推导 */
 export function createHillSilhouette(levelWidth: number, groundY: number): Graphics {
   const g = new Graphics();
   const baseY = groundY + 40;
@@ -91,6 +99,7 @@ export function createHillSilhouette(levelWidth: number, groundY: number): Graph
   return g;
 }
 
+/** 圆角石台 + 顶部草丛与草叶细节 */
 export function createCartoonPlatform(w: number, h: number): Graphics {
   const g = new Graphics();
   const r = Math.min(14, h * 0.35);
@@ -110,6 +119,7 @@ export function createCartoonPlatform(w: number, h: number): Graphics {
   return g;
 }
 
+/** 横向铺满的三角尖刺带，数量随宽度变化；与关卡 JSON 中的 w/h 对齐 */
 export function createCartoonSpikeField(w: number, h: number): Graphics {
   const g = new Graphics();
   const teeth = Math.max(3, Math.floor(w / 14));
@@ -133,6 +143,9 @@ export function createCartoonSpikeField(w: number, h: number): Graphics {
   return g;
 }
 
+/**
+ * 终点木门框 + 内部传送门（portal 单独引用以便做 alpha 动画）+ 顶部星星
+ */
 export function createCartoonGoal(
   doorW: number,
   doorH: number,
@@ -178,6 +191,7 @@ export function createCartoonGoal(
   return { root, portal };
 }
 
+/** createPlayerVisual 返回的节点引用，供每帧 drawPlayerBody 重绘 */
 export type PlayerVisual = {
   root: Container;
   shadow: Graphics;
@@ -186,6 +200,7 @@ export type PlayerVisual = {
   face: Graphics;
 };
 
+/** 组装玩家根节点：脚底椭圆阴影、冲刺光晕、身体与面部（面部与身体分 Graphics 便于分层绘制） */
 export function createPlayerVisual(): PlayerVisual {
   const root = new Container();
   const shadow = new Graphics();
@@ -208,6 +223,9 @@ export function createPlayerVisual(): PlayerVisual {
   return { root, shadow, dashAura, body, face };
 }
 
+/**
+ * 每帧根据状态清空并重绘：空中略压扁、眼睛随朝向偏移、冲刺时绘制光晕。
+ */
 export function drawPlayerBody(
   body: Graphics,
   face: Graphics,

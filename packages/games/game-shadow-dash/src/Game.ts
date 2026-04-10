@@ -1,3 +1,7 @@
+/**
+ * Shadow Dash：横版平台跳跃 + 冲刺。
+ * 使用 PixiJS 分层渲染（远景 / 关卡与角色 / 触屏 UI），每帧更新物理与相机。
+ */
 import {
   Application,
   Container,
@@ -21,6 +25,7 @@ import {
   drawPlayerBody,
 } from "./cartoonAssets";
 
+/** 手感相关常量（速度、跳跃、重力、冲刺时长与冷却，单位与帧 tick 一致） */
 const config = {
   speed: 5,
   jumpForce: 12,
@@ -30,30 +35,38 @@ const config = {
   dashCooldown: 60,
 };
 
+/** 终点传送门逻辑碰撞盒（与 createCartoonGoal 视觉大致对齐） */
 const GOAL_W = 44;
 const GOAL_H = 64;
 
+/** 关卡中平台、尖刺等使用的轴对齐矩形 */
 type Rect = { x: number; y: number; w: number; h: number };
 
 export class ShadowDashGame {
   public app: Application;
   private container!: HTMLElement;
+  /** 远景：天空、云、山，相机移动时做较小视差 */
   private bgLayer: Container;
+  /** 平台、障碍、玩家、终点等游戏世界内容 */
   private world: Container;
+  /** 虚拟按键等叠在画布上的 UI */
   private uiLayer: Container;
 
   private player!: Container;
   private playerVis!: ReturnType<typeof createPlayerVisual>;
+  /** 面朝方向，冲刺无输入时沿用上次朝向 */
   private facing: 1 | -1 = 1;
+  /** 累计时间，供角色动画与终点光效使用 */
   private animTick = 0;
 
   private platformRects: Rect[] = [];
   private spikeRects: Rect[] = [];
   private goalRect!: Rect;
 
+  /** 终点门内发光层，用于呼吸透明度动画 */
   private goalPortal!: Graphics;
 
-  // Player state
+  // 玩家运动状态
   private vx = 0;
   private vy = 0;
   private isGrounded = false;
@@ -64,7 +77,9 @@ export class ShadowDashGame {
   private keys: { [key: string]: boolean } = {};
   private touchInputs = { left: false, right: false, jump: false, dash: false };
 
+  /** 冲刺冷却 0→1，供外层 UI（如进度条）同步 */
   public onDashCooldownUpdate?: (progress: number) => void;
+  /** 进入终点碰撞盒时触发 */
   public onLevelComplete?: () => void;
 
   constructor() {
@@ -98,6 +113,7 @@ export class ShadowDashGame {
     this.app.ticker.add(this.update.bind(this));
   }
 
+  /** 根据关卡尺寸铺天空渐变、装饰云与远山（与平台最高点对齐山脚） */
   private setupBackground() {
     const groundY = Math.max(...levelData.platforms.map((p) => p.y));
     const sky = createSkyStrip(levelData.width, levelData.height);
@@ -117,6 +133,7 @@ export class ShadowDashGame {
     this.bgLayer.addChild(hills);
   }
 
+  /** 从 JSON 生成平台、尖刺与终点，并缓存用于物理的矩形 */
   private setupLevel() {
     this.platformRects = [];
     levelData.platforms.forEach((p) => {
@@ -147,6 +164,7 @@ export class ShadowDashGame {
     this.world.addChild(goalRoot);
   }
 
+  /** 创建玩家显示节点并放到出生点 */
   private setupPlayer() {
     this.playerVis = createPlayerVisual();
     this.player = this.playerVis.root;
@@ -154,6 +172,7 @@ export class ShadowDashGame {
     this.world.addChild(this.player);
   }
 
+  /** 落坑、碰刺或通关后重置位置与速度 */
   private respawn() {
     this.player.position.set(levelData.spawn.x, levelData.spawn.y);
     this.vx = 0;
@@ -162,6 +181,7 @@ export class ShadowDashGame {
     this.dashTimer = 0;
   }
 
+  /** 键盘：方向/WASD 移动，空格/上/W 跳，Shift/K 冲刺 */
   private setupControls() {
     window.addEventListener("keydown", (e) => {
       this.keys[e.code] = true;
@@ -183,6 +203,10 @@ export class ShadowDashGame {
     });
   }
 
+  /**
+   * 触屏设备在画面底部绘制虚拟方向键与跳/冲按钮；
+   * 窗口尺寸变化时重建按钮位置。
+   */
   private setupVirtualJoystick() {
     if (!("ontouchstart" in window)) return;
 
@@ -286,6 +310,7 @@ export class ShadowDashGame {
     window.addEventListener("resize", resizeUI);
   }
 
+  /** 仅在地面上且非冲刺中可起跳 */
   private jump() {
     if (this.isGrounded && !this.isDashing) {
       this.vy = -config.jumpForce;
@@ -293,6 +318,7 @@ export class ShadowDashGame {
     }
   }
 
+  /** 触发冲刺并进入冷却；冷却中或已在冲刺中则忽略 */
   private dash() {
     if (this.dashCooldownTimer <= 0 && !this.isDashing) {
       this.isDashing = true;
@@ -302,6 +328,7 @@ export class ShadowDashGame {
     }
   }
 
+  /** 轴对齐矩形相交检测 */
   private rectsOverlap(
     ax: number,
     ay: number,
@@ -312,6 +339,10 @@ export class ShadowDashGame {
     return ax < b.x + b.w && ax + aw > b.x && ay < b.y + b.h && ay + ah > b.y;
   }
 
+  /**
+   * 单帧：输入 → 冲刺/重力 → 先水平位移并解水平碰撞，再垂直位移解垂直碰撞，
+   * 然后 hazard/终点/摔落判定，最后平滑跟随相机与绘制。
+   */
   private update(ticker: Ticker) {
     this.animTick += ticker.deltaMS * 0.06;
 
@@ -349,7 +380,7 @@ export class ShadowDashGame {
 
     this.player.y += this.vy;
     this.isGrounded = false;
-    this.checkPlatformCollisions(false);
+    this.checkPlatformCollisions(false); // 落地时在此将 isGrounded 置 true
 
     if (this.checkHazardOverlap()) this.respawn();
 
@@ -368,6 +399,7 @@ export class ShadowDashGame {
 
     if (this.player.y > levelData.height + 200) this.respawn();
 
+    // 通过移动 world 实现相机：目标为玩家居中，略偏下；X 轴钳制在关卡范围内
     const targetCamX = -this.player.x + this.app.screen.width / 2;
     const targetCamY = -this.player.y + this.app.screen.height / 2 + 100;
     this.world.x += (targetCamX - this.world.x) * 0.1;
@@ -395,6 +427,10 @@ export class ShadowDashGame {
     this.playerVis.shadow.scale.x = 1 + Math.min(1, Math.abs(this.vx) / 12) * 0.12;
   }
 
+  /**
+   * 与所有平台依次解析重叠：水平阶段修正 X 并清零 vx；垂直阶段修正 Y、清零 vy，
+   * 自下而上碰撞时标记落地。
+   */
   private checkPlatformCollisions(isHorizontal: boolean) {
     const px = this.player.x;
     const py = this.player.y;
@@ -420,6 +456,7 @@ export class ShadowDashGame {
     }
   }
 
+  /** 与尖刺逻辑盒重叠则视为死亡，由调用方 respawn */
   private checkHazardOverlap(): boolean {
     for (const s of this.spikeRects) {
       if (
@@ -437,6 +474,7 @@ export class ShadowDashGame {
     return false;
   }
 
+  /** 卸载画布与 Pixi 资源 */
   public destroy() {
     this.app.destroy(true, { children: true });
   }

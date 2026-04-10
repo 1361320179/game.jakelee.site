@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-label="Shadow Dash game scene">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#7dd3fc"/>
+      <stop offset="55%" style="stop-color:#bae6fd"/>
+      <stop offset="100%" style="stop-color:#e0f2fe"/>
+    </linearGradient>
+    <linearGradient id="grass" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ade80"/>
+      <stop offset="100%" style="stop-color:#16a34a"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1200" height="675" fill="url(#sky)"/>
+  <circle cx="920" cy="120" r="56" fill="#fef08a" opacity="0.85"/>
+  <circle cx="900" cy="108" r="38" fill="#fef9c3" opacity="0.9"/>
+  <g fill="#fff" opacity="0.92">
+    <ellipse cx="200" cy="140" rx="72" ry="28"/>
+    <ellipse cx="250" cy="132" rx="52" ry="22"/>
+    <ellipse cx="290" cy="145" rx="44" ry="18"/>
+  </g>
+  <g fill="#fff" opacity="0.88">
+    <ellipse cx="620" cy="100" rx="64" ry="24"/>
+    <ellipse cx="670" cy="92" rx="48" ry="20"/>
+  </g>
+  <path d="M0 420 Q300 360 600 400 T1200 380 V675 H0Z" fill="#4a9e52"/>
+  <path d="M0 460 Q280 400 560 430 T1200 410 V675 H0Z" fill="url(#grass)"/>
+  <g transform="translate(180 380)">
+    <rect x="6" y="8" width="280" height="48" rx="14" fill="#000" opacity="0.15"/>
+    <rect width="280" height="48" rx="14" fill="#d4a574" stroke="#5c3d2e" stroke-width="4"/>
+    <rect x="-4" y="-14" width="288" height="22" rx="10" fill="#5ad66a" stroke="#2f8f45" stroke-width="3"/>
+  </g>
+  <g transform="translate(520 320)">
+    <rect x="6" y="8" width="200" height="36" rx="12" fill="#000" opacity="0.12"/>
+    <rect width="200" height="36" rx="12" fill="#d4a574" stroke="#5c3d2e" stroke-width="3"/>
+    <rect x="-3" y="-12" width="206" height="18" rx="8" fill="#5ad66a" stroke="#2f8f45" stroke-width="2"/>
+  </g>
+  <g transform="translate(780 360)">
+    <rect x="6" y="8" width="220" height="40" rx="12" fill="#000" opacity="0.12"/>
+    <rect width="220" height="40" rx="12" fill="#d4a574" stroke="#5c3d2e" stroke-width="3"/>
+    <rect x="-3" y="-12" width="226" height="20" rx="9" fill="#5ad66a" stroke="#2f8f45" stroke-width="2"/>
+  </g>
+  <g transform="translate(360 250)">
+    <path d="M0 120 L40 0 L80 120 Z" fill="#ff4b6e" stroke="#8b1c3f" stroke-width="3"/>
+    <path d="M80 120 L120 0 L160 120 Z" fill="#ff4b6e" stroke="#8b1c3f" stroke-width="3"/>
+    <path d="M160 120 L200 0 L240 120 Z" fill="#ff4b6e" stroke="#8b1c3f" stroke-width="3"/>
+    <rect y="118" width="240" height="8" fill="#8b1c3f" rx="2"/>
+  </g>
+  <g transform="translate(520 268)" filter="url(#soft)">
+    <ellipse cx="34" cy="62" rx="18" ry="6" fill="#000" opacity="0.2"/>
+    <rect x="8" y="8" width="52" height="56" rx="16" fill="#f57c00"/>
+    <rect x="12" y="12" width="44" height="48" rx="14" fill="#ffb74d" stroke="#e65100" stroke-width="3"/>
+    <circle cx="22" cy="30" r="7" fill="#fff" stroke="#90a4ae" stroke-width="1"/>
+    <circle cx="46" cy="30" r="7" fill="#fff" stroke="#90a4ae" stroke-width="1"/>
+    <circle cx="24" cy="32" r="3" fill="#263238"/>
+    <circle cx="48" cy="32" r="3" fill="#263238"/>
+    <circle cx="18" cy="40" r="5" fill="#ff8a80" opacity="0.7"/>
+    <circle cx="50" cy="40" r="5" fill="#ff8a80" opacity="0.7"/>
+    <path d="M28 48 Q34 52 40 48" fill="none" stroke="#5d4037" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(980 300)">
+    <rect x="-12" y="-12" width="88" height="104" rx="12" fill="#5c3a26" stroke="#3e2723" stroke-width="3"/>
+    <rect x="-4" y="-4" width="72" height="88" rx="10" fill="#8b5a3c" stroke="#4e342e" stroke-width="2"/>
+    <rect x="8" y="8" width="48" height="64" rx="12" fill="#7c4dff" opacity="0.9"/>
+    <rect x="14" y="14" width="36" height="48" rx="8" fill="#fff" opacity="0.2"/>
+    <path d="M44 -36 L52 -16 L72 -12 L56 2 L60 24 L44 14 L28 24 L32 2 L16 -12 L36 -16Z" fill="#ffe082" stroke="#f9a825" stroke-width="2"/>
+  </g>
+  <text x="600" y="58" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="34" font-weight="800" fill="#0f172a" opacity="0.88">Shadow Dash</text>
+  <text x="600" y="92" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="15" font-weight="600" fill="#334155" opacity="0.75">Cartoon platformer · Dash &amp; jump</text>
+</svg>

@@ -1,0 +1,9 @@
+{
+  "name": "@game/shadow-dash",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "pixi.js": "^8.0.0"
+  }
+}

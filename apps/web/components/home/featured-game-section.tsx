@@ -1,6 +1,7 @@
 import type { FeaturedGame } from "@game/content";
 import { ShellButton } from "@game/ui/shell-button";
 import { SectionEyebrow } from "@game/ui/section-eyebrow";
+import Link from "next/link";
 import { getLocalizedPath, type SiteLocale } from "../../lib/i18n/config";
 
 type FeaturedGameSectionProps = {
@@ -23,6 +24,7 @@ export function FeaturedGameSection({
   const secondaryHref = game.secondaryCta.href.startsWith("/")
     ? getLocalizedPath(locale, game.secondaryCta.href)
     : game.secondaryCta.href;
+  const playHref = getLocalizedPath(locale, `/games/${game.slug}`);
 
   return (
     <section className="panel-section" id="featured-game">
@@ -52,10 +54,26 @@ export function FeaturedGameSection({
         </div>
 
         <div className="feature-media">
-          <div className="feature-screen">
+          <Link
+            href={playHref}
+            className="feature-screen feature-screen--cover"
+            aria-label={`${game.title} — play`}
+          >
             <div className="feature-screen-scan" />
-            <span className="feature-screen-label">TRAILER / ART SLOT</span>
-          </div>
+            <img
+              className="feature-cover-image"
+              src={game.coverImage}
+              alt={game.coverImageAlt}
+              width={1200}
+              height={675}
+              loading="lazy"
+              decoding="async"
+            />
+            <div className="feature-screen-cta" aria-hidden="true">
+              <span className="feature-screen-play">▶</span>
+              <span>{game.primaryCta.label}</span>
+            </div>
+          </Link>
         </div>
 
         <div className="feature-metrics">

@@ -33,6 +33,7 @@ export default async function HomePage({ params }: HomePageProps) {
         }}
       />
       <GameGridSection
+        locale={locale}
         games={homePageContent.games}
         labels={{
           eyebrow: dictionary.sections.gameMatrix,

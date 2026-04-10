@@ -14,6 +14,11 @@ export type Metric = {
 };
 
 export type FeaturedGame = {
+  /** URL slug under /games/[slug] */
+  slug: string;
+  /** Public path e.g. /images/shadow-dash-cover.svg */
+  coverImage: string;
+  coverImageAlt: string;
   title: string;
   tagline: string;
   description: string;
@@ -32,6 +37,9 @@ export type GameCard = {
   genre: string;
   platform: string;
   status: string;
+  /** Optional cover under public/, e.g. /images/shadow-dash-cover.svg */
+  coverImage?: string;
+  coverImageAlt?: string;
 };
 
 export type DevlogEntry = {
@@ -64,8 +72,8 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
       subtitle:
         "A React-based home for experimental H5 games. The visual shell is ready. Real releases, media, and devlogs can drop in without changing the structure.",
       primaryCta: {
-        label: "Launch Featured Game",
-        href: "#featured-game",
+        label: "Play Shadow Dash",
+        href: "/games/shadow-dash",
       },
       secondaryCta: {
         label: "Browse Game Matrix",
@@ -73,35 +81,41 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
       },
     },
     featuredGame: {
-      title: "Project Placeholder",
-      tagline: "Main game preview shell is ready.",
+      slug: "shadow-dash",
+      coverImage: "/images/shadow-dash-cover.svg",
+      coverImageAlt: "Shadow Dash — cartoon platformer screenshot",
+      title: "Shadow Dash",
+      tagline: "Dash through a bright cartoon world — PC & mobile.",
       description:
-        "Use this block for the first title you want to push hardest. Copy, tags, metrics, preview art, and CTA slots are already reserved.",
-      genre: "Action Puzzle",
-      status: "Online Soon",
-      tags: ["High Impact", "Short Session", "Mobile Ready"],
+        "A fast platformer built for the web: run, jump, and chain dashes through spikes and gaps. Touch controls on phones; keyboard on desktop.",
+      genre: "Platformer",
+      status: "Playable",
+      tags: ["Dash", "Cartoon", "Mobile + PC"],
       metrics: [
-        { label: "Session", value: "03 Min" },
+        { label: "Session", value: "2–5 min" },
         { label: "Platform", value: "Mobile / PC" },
         { label: "Mode", value: "Solo" },
       ],
       primaryCta: {
-        label: "Play Slot",
-        href: "#",
+        label: "Play now",
+        href: "/games/shadow-dash",
       },
       secondaryCta: {
-        label: "View Detail",
-        href: "/games/project-placeholder",
+        label: "All games",
+        href: "/games",
       },
     },
     games: [
       {
-        slug: "project-placeholder",
-        title: "Project Placeholder",
-        summary: "Primary release slot for the homepage card wall.",
-        genre: "Arcade",
+        slug: "shadow-dash",
+        title: "Shadow Dash",
+        summary:
+          "Cartoon platformer with dash cooldown, spikes, and a clear goal — playable in the browser.",
+        genre: "Platformer",
         platform: "Web",
-        status: "Online Soon",
+        status: "Playable",
+        coverImage: "/images/shadow-dash-cover.svg",
+        coverImageAlt: "Shadow Dash screenshot",
       },
       {
         slug: "signal-runner",
@@ -187,8 +201,8 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
       subtitle:
         "一个面向实验性 H5 游戏的 React 站点骨架已经就位。后续接入真实作品、媒体资源和开发日志时，不需要重做整体结构。",
       primaryCta: {
-        label: "进入主推游戏",
-        href: "#featured-game",
+        label: "试玩 Shadow Dash",
+        href: "/games/shadow-dash",
       },
       secondaryCta: {
         label: "查看游戏矩阵",
@@ -196,35 +210,41 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
       },
     },
     featuredGame: {
-      title: "Project Placeholder",
-      tagline: "主推游戏预览位已经准备好。",
+      slug: "shadow-dash",
+      coverImage: "/images/shadow-dash-cover.svg",
+      coverImageAlt: "Shadow Dash（影跃）卡通平台跳跃游戏画面",
+      title: "Shadow Dash（影跃）",
+      tagline: "明亮卡通风横版平台跳跃，支持手机与电脑。",
       description:
-        "这个区块用于承接你最想重点推广的作品。文案、标签、指标、预览图和 CTA 位置都已经预留。",
-      genre: "Action Puzzle",
-      status: "即将上线",
-      tags: ["高冲击感", "短局体验", "移动端友好"],
+        "网页即开即玩：跑动、跳跃、冲刺穿越地刺与断层；手机带虚拟按键，电脑用键盘操作。",
+      genre: "平台跳跃",
+      status: "可玩",
+      tags: ["冲刺", "卡通", "多端"],
       metrics: [
-        { label: "单局时长", value: "03 分钟" },
-        { label: "平台", value: "Mobile / PC" },
+        { label: "单局时长", value: "2–5 分钟" },
+        { label: "平台", value: "手机 / 电脑" },
         { label: "模式", value: "单人" },
       ],
       primaryCta: {
-        label: "试玩入口",
-        href: "#",
+        label: "立即开玩",
+        href: "/games/shadow-dash",
       },
       secondaryCta: {
-        label: "查看详情",
-        href: "/games/project-placeholder",
+        label: "全部游戏",
+        href: "/games",
       },
     },
     games: [
       {
-        slug: "project-placeholder",
-        title: "Project Placeholder",
-        summary: "首页卡片墙的主发布位。",
-        genre: "Arcade",
+        slug: "shadow-dash",
+        title: "Shadow Dash（影跃）",
+        summary:
+          "带冲刺冷却与地刺的卡通平台跳跃，浏览器内直接游玩。",
+        genre: "平台跳跃",
         platform: "Web",
-        status: "即将上线",
+        status: "可玩",
+        coverImage: "/images/shadow-dash-cover.svg",
+        coverImageAlt: "Shadow Dash 游戏画面",
       },
       {
         slug: "signal-runner",

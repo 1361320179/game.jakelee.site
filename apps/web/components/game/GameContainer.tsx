@@ -27,6 +27,20 @@ function isTouchLike(): boolean {
 function readIsPortrait(): boolean {
   if (typeof window === "undefined") return false;
 
+  const vv = window.visualViewport;
+  let w = vv?.width ?? window.innerWidth;
+  let h = vv?.height ?? window.innerHeight;
+
+  if (w <= 1 || h <= 1) {
+    w = window.innerWidth || window.screen?.width || w;
+    h = window.innerHeight || window.screen?.height || h;
+  }
+
+  // Prefer the actual viewport aspect ratio. Some mobile browsers keep
+  // `screen.orientation.type` stale after rotation or while browser chrome animates.
+  if (w > h) return false;
+  if (h > w) return true;
+
   const type = screen.orientation?.type ?? "";
   if (type.includes("landscape")) return false;
   if (type.includes("portrait")) return true;
@@ -34,18 +48,6 @@ function readIsPortrait(): boolean {
   const legacy = (window as Window & { orientation?: number }).orientation;
   if (legacy === 90 || legacy === -90) return false;
   if (legacy === 0 || legacy === 180) return true;
-
-  const vv = window.visualViewport;
-  let w = vv?.width ?? window.innerWidth;
-  let h = vv?.height ?? window.innerHeight;
-
-  if (w <= 1 || h <= 1) {
-    w = window.screen?.width ?? w;
-    h = window.screen?.height ?? h;
-  }
-
-  if (w > h) return false;
-  if (h > w) return true;
 
   return window.matchMedia("(orientation: portrait)").matches;
 }
@@ -74,11 +76,25 @@ async function tryLockLandscape(): Promise<void> {
   }
 }
 
-function PortraitRotateHint({ visible }: { visible: boolean }) {
+function PortraitRotateHint({
+  visible,
+  onDismiss,
+}: {
+  visible: boolean;
+  onDismiss: () => void;
+}) {
   if (!visible) return null;
   return (
     <div className="game-portrait-hint" role="status" aria-live="polite">
       <div className="game-portrait-hint-card">
+        <button
+          type="button"
+          className="game-portrait-hint-dismiss"
+          onClick={onDismiss}
+          aria-label="关闭横屏提示"
+        >
+          ✕
+        </button>
         <div className="game-portrait-hint-icon" aria-hidden>
           <span className="game-portrait-phone">📱</span>
           <span className="game-portrait-arrow">↻</span>
@@ -100,12 +116,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [dashProgress, setDashProgress] = useState(1);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [portraitHint, setPortraitHint] = useState(false);
+  const [portraitHintDismissed, setPortraitHintDismissed] = useState(false);
 
   const syncPortraitHint = useCallback(() => {
     if (typeof window === "undefined") return;
     const portrait = readIsPortrait();
-    setPortraitHint(portrait && isTouchLike());
-  }, []);
+    const shouldShowHint = portrait && isTouchLike() && !portraitHintDismissed;
+    setPortraitHint(shouldShowHint);
+
+    // Re-enable the hint the next time the device returns to landscape,
+    // so a later portrait session can still show guidance again.
+    if (!portrait && portraitHintDismissed) {
+      setPortraitHintDismissed(false);
+    }
+  }, [portraitHintDismissed]);
 
   /** After rotation, dimensions often update one frame late (iOS / Chrome). */
   const scheduleSyncPortraitHint = useCallback(() => {
@@ -204,7 +228,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         ✕
       </Link>
 
-      <PortraitRotateHint visible={portraitHint} />
+      <PortraitRotateHint
+        visible={portraitHint}
+        onDismiss={() => {
+          setPortraitHint(false);
+          setPortraitHintDismissed(true);
+        }}
+      />
 
       <div className="game-viewport-inner">
         <div

@@ -861,26 +861,50 @@ html.game-play-active body {
 
 .game-portrait-hint {
   position: fixed;
-  inset: 0;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
   z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  padding-top: max(24px, env(safe-area-inset-top, 0px));
-  background: rgba(15, 23, 42, 0.92);
+  display: block;
+  padding: 0;
   font-family: var(--font-fredoka), system-ui, sans-serif;
-  pointer-events: auto;
-  text-align: center;
+  pointer-events: none;
+  text-align: left;
 }
 
 .game-portrait-hint-card {
-  max-width: 320px;
-  padding: 28px 24px;
+  position: relative;
+  width: min(320px, calc(100vw - 32px));
+  padding: 24px 44px 22px 20px;
   border-radius: 24px;
   background: linear-gradient(165deg, #fff9f0 0%, #e0f2fe 100%);
   border: 3px solid #1e3a5f;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+}
+
+.game-portrait-hint-dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.1);
+  color: #0f172a;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.game-portrait-hint-dismiss:hover {
+  background: rgba(15, 23, 42, 0.16);
+}
+
+.game-portrait-hint-dismiss:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .game-portrait-hint-icon {
@@ -1135,6 +1159,11 @@ html.game-play-active body {
   .game-card-link:hover {
     transform: none;
   }
+
+  .game-portrait-phone,
+  .game-portrait-arrow {
+    animation: none;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -1209,5 +1238,17 @@ html.game-play-active body {
 
   .devlog-rail {
     display: none;
+  }
+
+  .game-portrait-hint {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .game-portrait-hint-card {
+    width: 100%;
+    border-radius: 20px;
   }
 }

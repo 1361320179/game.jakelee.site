@@ -1093,7 +1093,9 @@ html.game-play-active body {
   font-weight: 700;
   letter-spacing: 0.04em;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  transition: transform 200ms ease, background 200ms ease;
+  transition:
+    transform 200ms ease,
+    background 200ms ease;
 }
 
 .feature-screen--cover:hover .feature-screen-cta {
@@ -1143,7 +1145,6 @@ html.game-play-active body {
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 220px;
   object-fit: cover;
 }
 

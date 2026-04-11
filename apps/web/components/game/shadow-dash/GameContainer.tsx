@@ -77,6 +77,17 @@ async function tryLockLandscape(): Promise<void> {
   }
 }
 
+async function tryUnlockOrientation(): Promise<void> {
+  try {
+    const o = screen.orientation as ScreenOrientation & {
+      unlock?: () => void;
+    };
+    o?.unlock?.();
+  } catch {
+    /* */
+  }
+}
+
 function PortraitRotateHint({
   visible,
   onDismiss,
@@ -124,6 +135,27 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [portraitHint, setPortraitHint] = useState(false);
   const [portraitHintDismissed, setPortraitHintDismissed] = useState(false);
+  /** 用户手动「横屏模式」：CSS 旋转视口，不依赖 orientation API */
+  const [manualLandscape, setManualLandscape] = useState(false);
+
+  const applyManualLandscape = useCallback(async () => {
+    const el = rootRef.current;
+    await tryEnterFullscreen(el);
+    await tryLockLandscape();
+    setManualLandscape(true);
+  }, []);
+
+  const clearManualLandscape = useCallback(async () => {
+    setManualLandscape(false);
+    await tryUnlockOrientation();
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      /* */
+    }
+  }, []);
 
   const syncPortraitHint = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -225,7 +257,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   return (
     <div
       ref={rootRef}
-      className="game-viewport-shell game-viewport-shell--fullscreen"
+      className={`game-viewport-shell game-viewport-shell--fullscreen${manualLandscape ? " game-viewport-shell--manual-landscape" : ""}`}
     >
       <Link
         href={backHref}
@@ -243,6 +275,29 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           setPortraitHintDismissed(true);
         }}
       />
+
+      {isTouchLike() && (
+        <button
+          type="button"
+          className={`game-landscape-fab${manualLandscape ? " game-landscape-fab--active" : ""}`}
+          onClick={() =>
+            manualLandscape ? void clearManualLandscape() : void applyManualLandscape()
+          }
+          aria-pressed={manualLandscape}
+          aria-label={
+            manualLandscape
+              ? "退出横屏模式"
+              : "横屏模式：全屏并尝试锁定横屏"
+          }
+        >
+          <span className="game-landscape-fab-icon" aria-hidden>
+            {manualLandscape ? "⤢" : "⤾"}
+          </span>
+          <span className="game-landscape-fab-text">
+            {manualLandscape ? "恢复" : "横屏"}
+          </span>
+        </button>
+      )}
 
       <div className="game-viewport-inner">
         <div

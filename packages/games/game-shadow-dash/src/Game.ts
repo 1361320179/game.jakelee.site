@@ -102,14 +102,14 @@ type DeathParticle = {
 };
 
 const physics = {
-  walkAccel: 0.55,
-  walkMax: 5.4,
-  friction: 0.48,
+  walkAccel: 0.34,
+  walkMax: 3.45,
+  friction: 0.36,
   gravity: 0.52,
   jumpVel: -12.8,
   jumpCut: 0.52,
   stompBounce: -6.2,
-  goombaSpeed: 1.15,
+  goombaSpeed: 0.78,
 };
 
 export class ShadowDashGame {
@@ -633,7 +633,7 @@ export class ShadowDashGame {
       alive: true,
       x: b.x + (TILE - MUSHROOM_W) / 2,
       y: b.y - MUSHROOM_H - 2,
-      vx: 1.25,
+      vx: 0.88,
       vy: 0,
       gfx: new Container(),
     };

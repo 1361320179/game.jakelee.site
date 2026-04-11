@@ -4,7 +4,6 @@
  */
 import {
   Application,
-  Circle,
   Container,
   Graphics,
   Point,
@@ -168,9 +167,30 @@ export class ShadowDashGame {
   private resizeUiHandler: (() => void) | null = null;
   private containerResizeObs: ResizeObserver | null = null;
 
+  /** 画布捕获阶段触摸：修正 CSS rotate 后 Pixi 的 e.global 错位 */
+  private canvasPointerDownCapture: ((ev: PointerEvent) => void) | null = null;
+  /** 当前摇杆拖动 pointer id（与 clearStickDragListeners 同步清空） */
+  private mobileStickPointerId: number | null = null;
+  private mobileStickRefs: {
+    joystickRoot: Container;
+    knob: Graphics;
+    outerR: number;
+    maxDrag: number;
+    deadPx: number;
+  } | null = null;
+  /** 与 stage 像素对齐的触控热区（圆心 + 半径） */
+  private mobileZones: {
+    stickCx: number;
+    stickCy: number;
+    stickR: number;
+    jumpCx: number;
+    jumpCy: number;
+    jumpR: number;
+  } | null = null;
+
   /**
-   * 仅在「非典型 PC」环境显示虚拟摇杆：粗指针（手指）或不可悬停的小屏。
-   * 典型桌面（精细指针 + hover）一律隐藏，避免触屏笔记本在接鼠标时仍出现轮盘。
+   * 仅在「非典型 PC」环境显示虚拟摇杆：精细指针 + hover 的桌面一律隐藏。
+   * 横屏后部分机型不再匹配 (pointer: coarse)，仍应保留触控 UI。
    */
   private useMobileTouchUi(): boolean {
     if (typeof window === "undefined") return false;
@@ -178,30 +198,155 @@ export class ShadowDashGame {
       window.matchMedia("(pointer: fine)").matches &&
       window.matchMedia("(hover: hover)").matches;
     if (desktopLike) return false;
-
-    const touchCapable =
-      "ontouchstart" in window || navigator.maxTouchPoints > 0;
-    if (!touchCapable) return false;
-
-    if (window.matchMedia("(pointer: coarse)").matches) return true;
     return (
-      window.matchMedia("(hover: none)").matches &&
-      window.matchMedia("(max-width: 1024px)").matches
+      "ontouchstart" in window || navigator.maxTouchPoints > 0
     );
   }
 
   private clearStickDragListeners() {
     this.stickDragCleanup?.();
     this.stickDragCleanup = null;
+    this.mobileStickPointerId = null;
+    const r = this.mobileStickRefs;
+    if (r) {
+      r.knob.position.set(r.outerR, r.outerR);
+    }
+    this.touchAxisX = 0;
   }
 
-  /** 浏览器坐标 → 与 app.screen 一致的像素坐标 */
+  /**
+   * 浏览器 client 坐标 → 与 app.screen / stage 一致的像素坐标。
+   * 父级 CSS rotate(90deg) 时 getBoundingClientRect 为竖屏 AABB，而渲染器为横屏 W×H，
+   * 线性映射会错位；此处按「绕中心顺时针 90°」做逆变换。
+   */
   private clientToScreen(clientX: number, clientY: number): Point {
     const rect = this.app.canvas.getBoundingClientRect();
-    const x = ((clientX - rect.left) / rect.width) * this.app.screen.width;
-    const y = ((clientY - rect.top) / rect.height) * this.app.screen.height;
+    const W = this.app.screen.width;
+    const H = this.app.screen.height;
+    if (rect.width < 2 || rect.height < 2) {
+      return new Point(0, 0);
+    }
+
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const sx = clientX - cx;
+    const sy = clientY - cy;
+
+    const looksCssRotated90 = W > H && rect.width < rect.height;
+
+    if (looksCssRotated90) {
+      const lx = sy * (W / rect.height);
+      const ly = -sx * (H / rect.width);
+      return new Point(lx + W / 2, ly + H / 2);
+    }
+
+    const x = ((clientX - rect.left) / rect.width) * W;
+    const y = ((clientY - rect.top) / rect.height) * H;
     return new Point(x, y);
   }
+
+  private applyMobileStickLocal(lx: number, ly: number) {
+    const r = this.mobileStickRefs;
+    if (!r) return;
+    const { outerR, maxDrag, deadPx } = r;
+    const cx = outerR;
+    const cy = outerR;
+    let dx = lx - cx;
+    let dy = ly - cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist < deadPx) {
+      dx = 0;
+      dy = 0;
+    } else if (dist > maxDrag) {
+      dx = (dx / dist) * maxDrag;
+      dy = (dy / dist) * maxDrag;
+    }
+    r.knob.position.set(cx + dx, cy + dy);
+    this.touchAxisX =
+      dist < deadPx ? 0 : Math.max(-1, Math.min(1, dx / maxDrag));
+  }
+
+  private onCanvasPointerDownCapture = (ev: PointerEvent) => {
+    if (!this.mobileZones || !this.mobileStickRefs) return;
+
+    const p = this.clientToScreen(ev.clientX, ev.clientY);
+    const z = this.mobileZones;
+
+    const dj = Math.hypot(p.x - z.jumpCx, p.y - z.jumpCy);
+    if (dj <= z.jumpR) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      try {
+        this.app.canvas.setPointerCapture(ev.pointerId);
+      } catch {
+        /* */
+      }
+      this.touchInputs.jump = true;
+      const up = (e: PointerEvent) => {
+        if (e.pointerId !== ev.pointerId) return;
+        this.touchInputs.jump = false;
+        try {
+          this.app.canvas.releasePointerCapture(ev.pointerId);
+        } catch {
+          /* */
+        }
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+      };
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+      return;
+    }
+
+    const ds = Math.hypot(p.x - z.stickCx, p.y - z.stickCy);
+    if (ds > z.stickR) return;
+
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+
+    if (this.mobileStickPointerId !== null) return;
+    this.mobileStickPointerId = ev.pointerId;
+    try {
+      this.app.canvas.setPointerCapture(ev.pointerId);
+    } catch {
+      /* */
+    }
+
+    const r = this.mobileStickRefs;
+    const local = r.joystickRoot.toLocal(p, this.app.stage);
+    this.applyMobileStickLocal(local.x, local.y);
+
+    const onWindowMove = (e: PointerEvent) => {
+      if (this.mobileStickPointerId !== e.pointerId) return;
+      const pt = this.clientToScreen(e.clientX, e.clientY);
+      const loc = r.joystickRoot.toLocal(pt, this.app.stage);
+      this.applyMobileStickLocal(loc.x, loc.y);
+    };
+
+    const onWindowUp = (e: PointerEvent) => {
+      if (this.mobileStickPointerId !== e.pointerId) return;
+      this.mobileStickPointerId = null;
+      r.knob.position.set(r.outerR, r.outerR);
+      this.touchAxisX = 0;
+      this.stickDragCleanup?.();
+      this.stickDragCleanup = null;
+      try {
+        this.app.canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        /* */
+      }
+    };
+
+    window.addEventListener("pointermove", onWindowMove);
+    window.addEventListener("pointerup", onWindowUp);
+    window.addEventListener("pointercancel", onWindowUp);
+
+    this.stickDragCleanup = () => {
+      window.removeEventListener("pointermove", onWindowMove);
+      window.removeEventListener("pointerup", onWindowUp);
+      window.removeEventListener("pointercancel", onWindowUp);
+    };
+  };
 
   constructor() {
     this.app = new Application();
@@ -412,7 +557,6 @@ export class ShadowDashGame {
 
     const resizeUI = () => {
       this.clearStickDragListeners();
-      this.touchAxisX = 0;
       this.uiLayer.removeChildren();
 
       const w = this.app.screen.width;
@@ -444,73 +588,24 @@ export class ShadowDashGame {
 
       joystickRoot.addChild(base);
       joystickRoot.addChild(knob);
-      joystickRoot.eventMode = "static";
-      joystickRoot.cursor = "pointer";
-      joystickRoot.hitArea = new Circle(outerR, outerR, outerR + 14);
+      joystickRoot.eventMode = "none";
 
-      const applyStick = (lx: number, ly: number) => {
-        const cx = outerR;
-        const cy = outerR;
-        let dx = lx - cx;
-        let dy = ly - cy;
-        const dist = Math.hypot(dx, dy);
-        if (dist < deadPx) {
-          dx = 0;
-          dy = 0;
-        } else if (dist > maxDrag) {
-          dx = (dx / dist) * maxDrag;
-          dy = (dy / dist) * maxDrag;
-        }
-        knob.position.set(cx + dx, cy + dy);
-        this.touchAxisX =
-          dist < deadPx ? 0 : Math.max(-1, Math.min(1, dx / maxDrag));
+      this.mobileStickRefs = {
+        joystickRoot,
+        knob,
+        outerR,
+        maxDrag,
+        deadPx,
       };
 
-      let stickPointerId: number | null = null;
-
-      const endStick = (ev: PointerEvent) => {
-        if (stickPointerId !== null && ev.pointerId !== stickPointerId) return;
-        stickPointerId = null;
-        knob.position.set(outerR, outerR);
-        this.touchAxisX = 0;
-        this.clearStickDragListeners();
-        try {
-          this.app.canvas.releasePointerCapture(ev.pointerId);
-        } catch {
-          /* not captured */
-        }
+      this.mobileZones = {
+        stickCx: pad + outerR,
+        stickCy: bottomY + outerR,
+        stickR: outerR + 14,
+        jumpCx: w - pad - jumpR,
+        jumpCy: bottomY + outerR * 2 - jumpR,
+        jumpR,
       };
-
-      const onWindowMove = (ev: PointerEvent) => {
-        if (stickPointerId === null || ev.pointerId !== stickPointerId) return;
-        const screenPt = this.clientToScreen(ev.clientX, ev.clientY);
-        const local = joystickRoot.toLocal(screenPt, this.app.stage);
-        applyStick(local.x, local.y);
-      };
-
-      const onWindowUp = (ev: PointerEvent) => {
-        endStick(ev);
-      };
-
-      joystickRoot.on("pointerdown", (e) => {
-        if (stickPointerId !== null) return;
-        stickPointerId = e.pointerId;
-        try {
-          this.app.canvas.setPointerCapture(e.pointerId);
-        } catch {
-          /* */
-        }
-        const local = joystickRoot.toLocal(e.global, this.app.stage);
-        applyStick(local.x, local.y);
-        window.addEventListener("pointermove", onWindowMove);
-        window.addEventListener("pointerup", onWindowUp);
-        window.addEventListener("pointercancel", onWindowUp);
-        this.stickDragCleanup = () => {
-          window.removeEventListener("pointermove", onWindowMove);
-          window.removeEventListener("pointerup", onWindowUp);
-          window.removeEventListener("pointercancel", onWindowUp);
-        };
-      });
 
       this.uiLayer.addChild(joystickRoot);
 
@@ -534,31 +629,7 @@ export class ShadowDashGame {
       jumpWrap.addChild(jumpFace);
       jumpWrap.addChild(jumpHi);
       jumpWrap.addChild(jumpTxt);
-      jumpWrap.eventMode = "static";
-      jumpWrap.cursor = "pointer";
-      jumpWrap.hitArea = new Circle(jumpR, jumpR, jumpR);
-
-      const jumpDown = (e: { pointerId: number }) => {
-        try {
-          this.app.canvas.setPointerCapture(e.pointerId);
-        } catch {
-          /* */
-        }
-        this.touchInputs.jump = true;
-      };
-      const jumpUp = (e: { pointerId: number }) => {
-        try {
-          this.app.canvas.releasePointerCapture(e.pointerId);
-        } catch {
-          /* */
-        }
-        this.touchInputs.jump = false;
-      };
-
-      jumpWrap.on("pointerdown", (e) => jumpDown(e));
-      jumpWrap.on("pointerup", (e) => jumpUp(e));
-      jumpWrap.on("pointerupoutside", (e) => jumpUp(e));
-      jumpWrap.on("pointercancel", (e) => jumpUp(e));
+      jumpWrap.eventMode = "none";
 
       this.uiLayer.addChild(jumpWrap);
     };
@@ -566,6 +637,13 @@ export class ShadowDashGame {
     resizeUI();
     this.resizeUiHandler = resizeUI;
     window.addEventListener("resize", resizeUI);
+
+    if (!this.canvasPointerDownCapture) {
+      this.canvasPointerDownCapture = this.onCanvasPointerDownCapture;
+      this.app.canvas.addEventListener("pointerdown", this.canvasPointerDownCapture, {
+        capture: true,
+      });
+    }
   }
 
   private rectsOverlap(ax: number, ay: number, aw: number, ah: number, b: Rect): boolean {
@@ -1168,6 +1246,14 @@ export class ShadowDashGame {
     if (this.resizeUiHandler) {
       window.removeEventListener("resize", this.resizeUiHandler);
     }
+    if (this.canvasPointerDownCapture && this.app.canvas) {
+      this.app.canvas.removeEventListener("pointerdown", this.canvasPointerDownCapture, {
+        capture: true,
+      });
+      this.canvasPointerDownCapture = null;
+    }
+    this.mobileStickRefs = null;
+    this.mobileZones = null;
     this.app.destroy(true, { children: true });
   }
 }

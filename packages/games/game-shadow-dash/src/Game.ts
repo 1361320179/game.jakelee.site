@@ -166,6 +166,7 @@ export class ShadowDashGame {
   public onGameOver?: () => void;
 
   private resizeUiHandler: (() => void) | null = null;
+  private containerResizeObs: ResizeObserver | null = null;
 
   /**
    * 仅在「非典型 PC」环境显示虚拟摇杆：粗指针（手指）或不可悬停的小屏。
@@ -231,6 +232,11 @@ export class ShadowDashGame {
     this.setupControls();
     this.setupVirtualJoystick();
     this.emitHud(true);
+
+    this.containerResizeObs = new ResizeObserver(() => {
+      this.resizeUiHandler?.();
+    });
+    this.containerResizeObs.observe(container);
 
     this.app.ticker.add(this.update.bind(this));
   }
@@ -1157,6 +1163,8 @@ export class ShadowDashGame {
   public destroy() {
     this.clearStickDragListeners();
     this.clearDeathParticles();
+    this.containerResizeObs?.disconnect();
+    this.containerResizeObs = null;
     if (this.resizeUiHandler) {
       window.removeEventListener("resize", this.resizeUiHandler);
     }

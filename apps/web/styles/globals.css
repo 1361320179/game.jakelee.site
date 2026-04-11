@@ -811,20 +811,97 @@ html.game-play-active body {
   background: #0f172a;
 }
 
-/* 触摸设备：手动横屏（全屏 + 锁定方向；失败时仍可用 CSS 旋转视口） */
-.game-viewport-shell.game-viewport-shell--manual-landscape {
-  position: fixed;
-  top: 50%;
+/* 默认：在 flex 宿主内铺满 */
+.game-viewport-fill {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * 手动横屏：旋转层单独套在「全屏宿主」内。
+ * 若 transform 与 requestFullscreen 绑在同一节点，UA 的 :fullscreen 常强制 100%×100%，
+ * 会盖掉 swapped 的 dvh/dvw，导致看起来没有横过来。
+ */
+.game-viewport-shell.game-viewport-shell--manual-landscape-host {
+  position: fixed !important;
+  inset: 0;
+  z-index: 40;
+  flex: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
+.game-viewport-shell.game-viewport-shell--manual-landscape-host:fullscreen {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.game-manual-landscape-rotator {
+  position: absolute;
   left: 50%;
-  z-index: 4;
-  flex: none;
+  top: 50%;
+  box-sizing: border-box;
+  /* 竖屏持机：用长边作宽、短边作高，再 rotate(90deg) 铺满可视区域 */
+  width: 100vh;
+  height: 100vw;
   width: 100dvh;
   height: 100dvw;
+  max-width: 100vh;
+  max-height: 100vw;
   max-width: 100dvh;
   max-height: 100dvw;
-  margin: 0;
-  transform: translate(-50%, -50%) rotate(90deg);
+  transform: translate3d(-50%, -50%, 0) rotate(90deg);
   transform-origin: center center;
+  /*
+   * 勿用 column flex：在「宽=长边、高=短边」的盒子里，子项会沿短边堆叠，
+   * 退出键/横屏钮占掉高度后游戏区只剩一条窄带，Pixi 视口畸形、人物出屏。
+   * 游戏区绝对铺满，控件叠在上层。
+   */
+  display: block;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+/* 手动横屏：画布区域占满整个旋转矩形（逻辑上的横屏视口） */
+.game-manual-landscape-rotator .game-viewport-inner {
+  position: absolute;
+  inset: 0;
+  flex: none;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  z-index: 1;
+}
+
+.game-manual-landscape-rotator .game-play-exit {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top, 0px));
+  left: max(10px, env(safe-area-inset-left, 0px));
+  right: auto;
+  bottom: auto;
+  z-index: 90;
+}
+
+.game-manual-landscape-rotator .game-portrait-hint {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  left: auto;
+  bottom: auto;
+  z-index: 85;
+}
+
+.game-manual-landscape-rotator .game-landscape-fab {
+  z-index: 96;
 }
 
 .game-viewport-inner {

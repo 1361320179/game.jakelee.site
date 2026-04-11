@@ -137,6 +137,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [portraitHintDismissed, setPortraitHintDismissed] = useState(false);
   /** 用户手动「横屏模式」：CSS 旋转视口，不依赖 orientation API */
   const [manualLandscape, setManualLandscape] = useState(false);
+  /** 避免 SSR 与客户端不一致：横屏按钮仅在挂载后按视口/触摸判定 */
+  const [showLandscapeFab, setShowLandscapeFab] = useState(false);
 
   const applyManualLandscape = useCallback(async () => {
     const el = rootRef.current;
@@ -187,6 +189,33 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       document.documentElement.classList.remove("game-play-active");
     };
   }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-aspect-ratio: 1/1)");
+    const syncFab = () => {
+      setShowLandscapeFab(isTouchLike() || mq.matches);
+    };
+    syncFab();
+    mq.addEventListener("change", syncFab);
+    window.addEventListener("resize", syncFab);
+    return () => {
+      mq.removeEventListener("change", syncFab);
+      window.removeEventListener("resize", syncFab);
+    };
+  }, []);
+
+  /** 手动横屏切换布局后，部分环境不会触发 window resize，推一把 Pixi / 触控 UI */
+  useEffect(() => {
+    let alive = true;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (alive) window.dispatchEvent(new Event("resize"));
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [manualLandscape]);
 
   useEffect(() => {
     scheduleSyncPortraitHint();
@@ -257,61 +286,73 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   return (
     <div
       ref={rootRef}
-      className={`game-viewport-shell game-viewport-shell--fullscreen${manualLandscape ? " game-viewport-shell--manual-landscape" : ""}`}
+      className={`game-viewport-shell game-viewport-shell--fullscreen${
+        manualLandscape ? " game-viewport-shell--manual-landscape-host" : ""
+      }`}
     >
-      <Link
-        href={backHref}
-        className="game-play-exit"
-        prefetch={false}
-        aria-label="返回游戏列表"
+      <div
+        className={
+          manualLandscape
+            ? "game-manual-landscape-rotator"
+            : "game-viewport-fill"
+        }
       >
-        ✕
-      </Link>
-
-      <PortraitRotateHint
-        visible={portraitHint}
-        onDismiss={() => {
-          setPortraitHint(false);
-          setPortraitHintDismissed(true);
-        }}
-      />
-
-      {isTouchLike() && (
-        <button
-          type="button"
-          className={`game-landscape-fab${manualLandscape ? " game-landscape-fab--active" : ""}`}
-          onClick={() =>
-            manualLandscape ? void clearManualLandscape() : void applyManualLandscape()
-          }
-          aria-pressed={manualLandscape}
-          aria-label={
-            manualLandscape
-              ? "退出横屏模式"
-              : "横屏模式：全屏并尝试锁定横屏"
-          }
+        <Link
+          href={backHref}
+          className="game-play-exit"
+          prefetch={false}
+          aria-label="返回游戏列表"
         >
-          <span className="game-landscape-fab-icon" aria-hidden>
-            {manualLandscape ? "⤢" : "⤾"}
-          </span>
-          <span className="game-landscape-fab-text">
-            {manualLandscape ? "恢复" : "横屏"}
-          </span>
-        </button>
-      )}
+          ✕
+        </Link>
 
-      <div className="game-viewport-inner">
-        <div
-          id="pixi-canvas-container"
-          className="game-pixi-mount"
-          style={{ width: "100%", height: "100%" }}
+        <PortraitRotateHint
+          visible={portraitHint}
+          onDismiss={() => {
+            setPortraitHint(false);
+            setPortraitHintDismissed(true);
+          }}
         />
 
-        <GameOverlay
-          levelName={`L1-1 · ${slug}`}
-          timeElapsed={timeElapsed}
-          marioHud={slug === "shadow-dash" ? marioHud : null}
-          showPrompts={true}
-        />
+        {showLandscapeFab && (
+          <button
+            type="button"
+            className={`game-landscape-fab${manualLandscape ? " game-landscape-fab--active" : ""}`}
+            onClick={() =>
+              manualLandscape
+                ? void clearManualLandscape()
+                : void applyManualLandscape()
+            }
+            aria-pressed={manualLandscape}
+            aria-label={
+              manualLandscape
+                ? "退出横屏模式"
+                : "横屏模式：全屏并尝试锁定横屏"
+            }
+          >
+            <span className="game-landscape-fab-icon" aria-hidden>
+              {manualLandscape ? "⤢" : "⤾"}
+            </span>
+            <span className="game-landscape-fab-text">
+              {manualLandscape ? "恢复" : "横屏"}
+            </span>
+          </button>
+        )}
+
+        <div className="game-viewport-inner">
+          <div
+            id="pixi-canvas-container"
+            className="game-pixi-mount"
+            style={{ width: "100%", height: "100%" }}
+          />
+
+          <GameOverlay
+            levelName={`L1-1 · ${slug}`}
+            timeElapsed={timeElapsed}
+            marioHud={slug === "shadow-dash" ? marioHud : null}
+            showPrompts={true}
+          />
+        </div>
       </div>
     </div>
   );

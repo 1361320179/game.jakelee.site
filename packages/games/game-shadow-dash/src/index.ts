@@ -2,17 +2,20 @@
  * 供 Next 等宿主动态加载：在指定 DOM 节点挂载 / 卸载 Pixi 游戏实例。
  * 同时只允许一个活跃实例，避免重复 init。
  */
-import { ShadowDashGame } from './Game';
+import type { MarioHudState } from "./Game";
+import { ShadowDashGame } from "./Game";
+
+export type { MarioHudState };
 
 let activeGame: ShadowDashGame | null = null;
 
-/** 在 `containerId` 对应元素内初始化画布并开始游戏循环 */
 export const mountGame = async (
-  containerId: string, 
-  callbacks?: { 
-    onDashCooldownUpdate?: (progress: number) => void,
-    onLevelComplete?: () => void
-  }
+  containerId: string,
+  callbacks?: {
+    onHudUpdate?: (s: MarioHudState) => void;
+    onLevelComplete?: () => void;
+    onGameOver?: () => void;
+  },
 ) => {
   const container = document.getElementById(containerId);
   if (!container) {
@@ -22,15 +25,15 @@ export const mountGame = async (
 
   activeGame = new ShadowDashGame();
   if (callbacks) {
-    activeGame.onDashCooldownUpdate = callbacks.onDashCooldownUpdate;
+    activeGame.onHudUpdate = callbacks.onHudUpdate;
     activeGame.onLevelComplete = callbacks.onLevelComplete;
+    activeGame.onGameOver = callbacks.onGameOver;
   }
-  
+
   await activeGame.init(container);
   console.log(`Mounted Shadow Dash game to ${containerId}`);
 };
 
-/** 销毁当前实例并释放 WebGL / Canvas 资源 */
 export const unmountGame = () => {
   if (activeGame) {
     activeGame.destroy();

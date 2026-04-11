@@ -11,7 +11,11 @@ function pathnameHasLocale(pathname: string) {
   return isLocale(maybeLocale);
 }
 
-export function proxy(request: NextRequest) {
+/**
+ * Next.js 16 `proxy.ts`: provide default export so the handler is registered.
+ * Named `proxy` export kept for compatibility with tooling that looks for it.
+ */
+function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -30,6 +34,9 @@ export function proxy(request: NextRequest) {
 
   return NextResponse.redirect(url);
 }
+
+export default proxy;
+export { proxy };
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],

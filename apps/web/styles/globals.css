@@ -824,6 +824,11 @@ html.game-play-active body {
   inset: 0;
   width: 100%;
   height: 100%;
+  touch-action: none;
+}
+
+.game-pixi-mount canvas {
+  touch-action: none;
 }
 
 .game-play-exit {

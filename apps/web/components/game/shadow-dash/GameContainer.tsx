@@ -1,5 +1,6 @@
 "use client";
 
+import type { MarioHudState } from "@game/shadow-dash";
 import Link from "next/link";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { GameOverlay } from "./GameOverlay";
@@ -113,7 +114,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   backHref,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
-  const [dashProgress, setDashProgress] = useState(1);
+  const [marioHud, setMarioHud] = useState<MarioHudState>({
+    score: 0,
+    coins: 0,
+    lives: 3,
+    world: "WORLD 1-1",
+    time: 300,
+  });
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [portraitHint, setPortraitHint] = useState(false);
   const [portraitHintDismissed, setPortraitHintDismissed] = useState(false);
@@ -188,8 +195,9 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         if (cancelled) return;
         unmountFn = unmountGame;
         await mountGame("pixi-canvas-container", {
-          onDashCooldownUpdate: (progress) => setDashProgress(progress),
-          onLevelComplete: () => alert("Level Complete!"),
+          onHudUpdate: (s) => setMarioHud(s),
+          onLevelComplete: () => alert("Course Clear!"),
+          onGameOver: () => alert("Game Over"),
         });
       }
     };
@@ -246,7 +254,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         <GameOverlay
           levelName={`L1-1 · ${slug}`}
           timeElapsed={timeElapsed}
-          dashCooldownProgress={dashProgress}
+          marioHud={slug === "shadow-dash" ? marioHud : null}
           showPrompts={true}
         />
       </div>

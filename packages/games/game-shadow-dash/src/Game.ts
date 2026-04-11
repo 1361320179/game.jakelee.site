@@ -1,11 +1,13 @@
 /**
- * Shadow Dash：横版平台跳跃 + 冲刺。
- * 使用 PixiJS 分层渲染（远景 / 关卡与角色 / 触屏 UI），每帧更新物理与相机。
+ * Shadow Dash L1 — SMB1 World 1-1 style homage (fan recreation, not official assets).
+ * Walk / jump / stomp / ? blocks / flag; no dash.
  */
 import {
   Application,
+  Circle,
   Container,
   Graphics,
+  Point,
   Rectangle,
   Ticker,
   Text,
@@ -13,80 +15,199 @@ import {
 } from "pixi.js";
 import levelData from "../../../content/games/shadow-dash/levels/level-1.json";
 import {
+  GOOMBA_H,
+  GOOMBA_W,
+  MUSHROOM_H,
+  MUSHROOM_W,
+  PLAYER_BIG_H,
+  PLAYER_BIG_W,
   PLAYER_H,
   PLAYER_W,
-  createCartoonGoal,
-  createCartoonPlatform,
-  createCartoonSpikeField,
-  createCloudPuff,
-  createHillSilhouette,
-  createPlayerVisual,
-  createSkyStrip,
-  drawPlayerBody,
-} from "./cartoonAssets";
+  PIRANHA_H,
+  PIRANHA_W,
+  TILE,
+  createBrickBlock,
+  createFlagAssembly,
+  createGoombaGraphics,
+  createGroundTile,
+  createMarioVisual,
+  createMushroomGraphics,
+  createPipe,
+  createPiranhaPlant,
+  createQuestionBlock,
+  createSMBSkyBackdrop,
+  createUsedBlock,
+  drawMarioBig,
+  drawMarioSmall,
+  drawPiranhaHead,
+} from "./marioAssets";
 
-/** 手感相关常量（速度、跳跃、重力、冲刺时长与冷却，单位与帧 tick 一致） */
-const config = {
-  speed: 5,
-  jumpForce: 12,
-  gravity: 0.6,
-  dashSpeed: 15,
-  dashDuration: 12,
-  dashCooldown: 60,
+export type MarioHudState = {
+  score: number;
+  coins: number;
+  lives: number;
+  world: string;
+  time: number;
 };
 
-/** 终点传送门逻辑碰撞盒（与 createCartoonGoal 视觉大致对齐） */
-const GOAL_W = 44;
-const GOAL_H = 64;
-
-/** 关卡中平台、尖刺等使用的轴对齐矩形 */
 type Rect = { x: number; y: number; w: number; h: number };
+
+type SolidKind = "ground" | "pipe" | "block";
+
+type SolidRef = Rect & { kind: SolidKind; blockId?: number };
+
+type BlockData = {
+  x: number;
+  y: number;
+  kind: "brick" | "question";
+  /** 仅问号砖有效：金币或蘑菇 */
+  loot: "coin" | "mushroom";
+  used: boolean;
+  bump: number;
+  gfx: Container;
+};
+
+type GoombaData = {
+  alive: boolean;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  gfx: Container;
+};
+
+type MushroomData = {
+  alive: boolean;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  gfx: Container;
+};
+
+type PiranhaData = {
+  gfx: Container;
+  head: Graphics;
+  baseX: number;
+  pipeTop: number;
+  emergeMax: number;
+  phase: number;
+};
+
+type DeathParticle = {
+  g: Graphics;
+  vx: number;
+  vy: number;
+  life: number;
+};
+
+const physics = {
+  walkAccel: 0.55,
+  walkMax: 5.4,
+  friction: 0.48,
+  gravity: 0.52,
+  jumpVel: -12.8,
+  jumpCut: 0.52,
+  stompBounce: -6.2,
+  goombaSpeed: 1.15,
+};
 
 export class ShadowDashGame {
   public app: Application;
   private container!: HTMLElement;
-  /** 远景：天空、云、山，相机移动时做较小视差 */
   private bgLayer: Container;
-  /** 平台、障碍、玩家、终点等游戏世界内容 */
   private world: Container;
-  /** 虚拟按键等叠在画布上的 UI */
   private uiLayer: Container;
 
   private player!: Container;
-  private playerVis!: ReturnType<typeof createPlayerVisual>;
-  /** 面朝方向，冲刺无输入时沿用上次朝向 */
+  private playerVis!: ReturnType<typeof createMarioVisual>;
   private facing: 1 | -1 = 1;
-  /** 累计时间，供角色动画与终点光效使用 */
   private animTick = 0;
 
-  private platformRects: Rect[] = [];
-  private spikeRects: Rect[] = [];
-  private goalRect!: Rect;
+  private solids: SolidRef[] = [];
+  private blocks: BlockData[] = [];
+  private goombas: GoombaData[] = [];
+  private mushrooms: MushroomData[] = [];
+  private piranhas: PiranhaData[] = [];
+  private flagTouch!: Rect;
+  private flagRoot!: Container;
 
-  /** 终点门内发光层，用于呼吸透明度动画 */
-  private goalPortal!: Graphics;
+  private isBig = false;
+  private iframes = 0;
+  private deathSequenceMs = 0;
+  private deathParticles: DeathParticle[] = [];
 
-  // 玩家运动状态
   private vx = 0;
   private vy = 0;
   private isGrounded = false;
-  private isDashing = false;
-  private dashTimer = 0;
-  private dashCooldownTimer = 0;
+  private jumpQueued = false;
+  private jumpCutDone = false;
 
-  private keys: { [key: string]: boolean } = {};
-  private touchInputs = { left: false, right: false, jump: false, dash: false };
+  private keys: Record<string, boolean> = {};
+  private prevJump = false;
+  /** 移动端虚拟跳跃键 */
+  private touchInputs = { jump: false };
+  /** 虚拟摇杆水平分量 [-1, 1]，仅移动端使用 */
+  private touchAxisX = 0;
+  private stickDragCleanup: (() => void) | null = null;
 
-  /** 冲刺冷却 0→1，供外层 UI（如进度条）同步 */
-  public onDashCooldownUpdate?: (progress: number) => void;
-  /** 进入终点碰撞盒时触发 */
+  private score = 0;
+  private coins = 0;
+  private lives = 3;
+  private timeLeft: number;
+  private timeAccMs = 0;
+
+  private won = false;
+  private frozen = false;
+
+  private lastHudEmit = 0;
+  public onHudUpdate?: (s: MarioHudState) => void;
   public onLevelComplete?: () => void;
+  public onGameOver?: () => void;
+
+  private resizeUiHandler: (() => void) | null = null;
+
+  /**
+   * 仅在「非典型 PC」环境显示虚拟摇杆：粗指针（手指）或不可悬停的小屏。
+   * 典型桌面（精细指针 + hover）一律隐藏，避免触屏笔记本在接鼠标时仍出现轮盘。
+   */
+  private useMobileTouchUi(): boolean {
+    if (typeof window === "undefined") return false;
+    const desktopLike =
+      window.matchMedia("(pointer: fine)").matches &&
+      window.matchMedia("(hover: hover)").matches;
+    if (desktopLike) return false;
+
+    const touchCapable =
+      "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    if (!touchCapable) return false;
+
+    if (window.matchMedia("(pointer: coarse)").matches) return true;
+    return (
+      window.matchMedia("(hover: none)").matches &&
+      window.matchMedia("(max-width: 1024px)").matches
+    );
+  }
+
+  private clearStickDragListeners() {
+    this.stickDragCleanup?.();
+    this.stickDragCleanup = null;
+  }
+
+  /** 浏览器坐标 → 与 app.screen 一致的像素坐标 */
+  private clientToScreen(clientX: number, clientY: number): Point {
+    const rect = this.app.canvas.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * this.app.screen.width;
+    const y = ((clientY - rect.top) / rect.height) * this.app.screen.height;
+    return new Point(x, y);
+  }
 
   constructor() {
     this.app = new Application();
     this.bgLayer = new Container();
     this.world = new Container();
     this.uiLayer = new Container();
+    this.timeLeft = levelData.timeLimit;
   }
 
   public async init(container: HTMLElement) {
@@ -94,7 +215,7 @@ export class ShadowDashGame {
 
     await this.app.init({
       resizeTo: container,
-      backgroundColor: 0x7dd3fc,
+      backgroundColor: 0x5c94fc,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
     });
@@ -105,377 +226,940 @@ export class ShadowDashGame {
     this.app.stage.addChild(this.uiLayer);
 
     this.setupBackground();
-    this.setupLevel();
+    this.buildLevel();
     this.setupPlayer();
     this.setupControls();
     this.setupVirtualJoystick();
+    this.emitHud(true);
 
     this.app.ticker.add(this.update.bind(this));
   }
 
-  /** 根据关卡尺寸铺天空渐变、装饰云与远山（与平台最高点对齐山脚） */
   private setupBackground() {
-    const groundY = Math.max(...levelData.platforms.map((p) => p.y));
-    const sky = createSkyStrip(levelData.width, levelData.height);
-    sky.position.set(-400, -120);
-    this.bgLayer.addChild(sky);
-
-    const clouds = new Container();
-    clouds.addChild(createCloudPuff(180, 90, 1.1));
-    clouds.addChild(createCloudPuff(520, 140, 0.85));
-    clouds.addChild(createCloudPuff(980, 80, 1));
-    clouds.addChild(createCloudPuff(1420, 160, 0.9));
-    clouds.addChild(createCloudPuff(1750, 100, 1.05));
-    this.bgLayer.addChild(clouds);
-
-    const hills = createHillSilhouette(levelData.width, groundY);
-    hills.position.set(-400, 0);
-    this.bgLayer.addChild(hills);
+    const backdrop = createSMBSkyBackdrop(
+      levelData.width,
+      levelData.height,
+      levelData.groundY,
+    );
+    this.bgLayer.addChild(backdrop);
   }
 
-  /** 从 JSON 生成平台、尖刺与终点，并缓存用于物理的矩形 */
-  private setupLevel() {
-    this.platformRects = [];
-    levelData.platforms.forEach((p) => {
-      this.platformRects.push({ x: p.x, y: p.y, w: p.w, h: p.h });
-      const platform = createCartoonPlatform(p.w, p.h);
-      platform.position.set(p.x, p.y);
-      this.world.addChild(platform);
-    });
+  private buildLevel() {
+    const gy = levelData.groundY;
+    const th = levelData.groundThickness;
+    this.solids = [];
 
-    this.spikeRects = [];
-    levelData.spikes.forEach((s) => {
-      this.spikeRects.push({ x: s.x, y: s.y, w: s.w, h: s.h });
-      const spike = createCartoonSpikeField(s.w, s.h);
-      spike.position.set(s.x, s.y);
-      this.world.addChild(spike);
-    });
+    for (const seg of levelData.groundSegments) {
+      const r: Rect = { x: seg.x, y: gy, w: seg.w, h: th };
+      this.solids.push({ ...r, kind: "ground" });
+      const g = createGroundTile(seg.w, th);
+      g.position.set(seg.x, gy);
+      this.world.addChild(g);
+    }
 
-    const goalTopY = levelData.goal.y - GOAL_H;
-    this.goalRect = {
-      x: levelData.goal.x,
-      y: goalTopY,
-      w: GOAL_W,
-      h: GOAL_H,
+    this.piranhas = [];
+    let plantIdx = 0;
+    for (const p of levelData.pipes) {
+      const top = gy - p.h;
+      const r: Rect = { x: p.x, y: top, w: p.w, h: p.h };
+      this.solids.push({ ...r, kind: "pipe" });
+      const pipe = createPipe(p.w, p.h);
+      pipe.position.set(p.x, top);
+      this.world.addChild(pipe);
+
+      const raw = p as { plant?: boolean };
+      if (raw.plant) {
+        const pv = createPiranhaPlant();
+        const baseX = p.x + p.w / 2 - PIRANHA_W / 2;
+        pv.root.position.set(baseX, top - PIRANHA_H);
+        drawPiranhaHead(pv.head, 0);
+        this.world.addChild(pv.root);
+        this.piranhas.push({
+          gfx: pv.root,
+          head: pv.head,
+          baseX,
+          pipeTop: top,
+          emergeMax: Math.min(56, p.h * 0.55),
+          phase: plantIdx++ * 1.9,
+        });
+      }
+    }
+
+    this.blocks = [];
+    this.mushrooms = [];
+    let blockId = 0;
+    for (const b of levelData.blocks) {
+      const raw = b as { loot?: string };
+      const loot: "coin" | "mushroom" =
+        raw.loot === "mushroom" ? "mushroom" : "coin";
+      const gfx = new Container();
+      const inner = b.kind === "question" ? createQuestionBlock() : createBrickBlock();
+      gfx.addChild(inner);
+      gfx.position.set(b.x, b.y);
+      this.world.addChild(gfx);
+      this.blocks.push({
+        x: b.x,
+        y: b.y,
+        kind: b.kind as "brick" | "question",
+        loot: b.kind === "question" ? loot : "coin",
+        used: false,
+        bump: 0,
+        gfx,
+      });
+      this.solids.push({
+        x: b.x,
+        y: b.y,
+        w: TILE,
+        h: TILE,
+        kind: "block",
+        blockId: blockId++,
+      });
+    }
+
+    this.goombas = [];
+    for (const g of levelData.goombas) {
+      const gfx = new Container();
+      gfx.addChild(createGoombaGraphics());
+      gfx.position.set(g.x, g.y);
+      this.world.addChild(gfx);
+      this.goombas.push({
+        alive: true,
+        x: g.x,
+        y: g.y,
+        vx: -physics.goombaSpeed,
+        vy: 0,
+        gfx,
+      });
+    }
+
+    const { root } = createFlagAssembly(levelData.poleH, gy);
+    this.flagRoot = root;
+    root.position.set(levelData.flagX, 0);
+    this.world.addChild(root);
+
+    this.flagTouch = {
+      x: levelData.flagX,
+      y: gy - levelData.poleH,
+      w: 14,
+      h: levelData.poleH,
     };
-    const { root: goalRoot, portal } = createCartoonGoal(GOAL_W, GOAL_H);
-    this.goalPortal = portal;
-    goalRoot.position.set(this.goalRect.x, this.goalRect.y);
-    this.world.addChild(goalRoot);
   }
 
-  /** 创建玩家显示节点并放到出生点 */
   private setupPlayer() {
-    this.playerVis = createPlayerVisual();
+    this.playerVis = createMarioVisual();
     this.player = this.playerVis.root;
-    this.respawn();
+    this.respawn(false);
     this.world.addChild(this.player);
   }
 
-  /** 落坑、碰刺或通关后重置位置与速度 */
-  private respawn() {
-    this.player.position.set(levelData.spawn.x, levelData.spawn.y);
-    this.vx = 0;
-    this.vy = 0;
-    this.isDashing = false;
-    this.dashTimer = 0;
+  private pw() {
+    return this.isBig ? PLAYER_BIG_W : PLAYER_W;
   }
 
-  /** 键盘：方向/WASD 移动，空格/上/W 跳，Shift/K 冲刺 */
+  private ph() {
+    return this.isBig ? PLAYER_BIG_H : PLAYER_H;
+  }
+
+  private respawn(resetVel: boolean) {
+    this.player.position.set(levelData.spawn.x, levelData.spawn.y);
+    if (resetVel) {
+      this.vx = 0;
+      this.vy = 0;
+    }
+    this.isGrounded = false;
+  }
+
   private setupControls() {
     window.addEventListener("keydown", (e) => {
       this.keys[e.code] = true;
       if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
         e.preventDefault();
-        this.jump();
-      }
-      if (
-        e.code === "ShiftLeft" ||
-        e.code === "ShiftRight" ||
-        e.code === "KeyK"
-      ) {
-        this.dash();
       }
     });
-
     window.addEventListener("keyup", (e) => {
       this.keys[e.code] = false;
     });
   }
 
-  /**
-   * 触屏设备在画面底部绘制虚拟方向键与跳/冲按钮；
-   * 窗口尺寸变化时重建按钮位置。
-   */
   private setupVirtualJoystick() {
-    if (!("ontouchstart" in window)) return;
+    if (!this.useMobileTouchUi()) return;
 
-    const labelStyle = new TextStyle({
+    const outerR = 56;
+    const innerR = 22;
+    const maxDrag = 34;
+    const deadPx = 10;
+
+    const jumpR = 50;
+    const jumpLabelStyle = new TextStyle({
       fontFamily: "system-ui, sans-serif",
-      fontSize: 18,
-      fontWeight: "800",
+      fontSize: 22,
+      fontWeight: "900",
       fill: 0xffffff,
       dropShadow: {
-        alpha: 0.45,
+        alpha: 0.4,
         angle: Math.PI / 4,
-        blur: 3,
+        blur: 2,
         color: 0x000000,
         distance: 2,
       },
     });
 
-    const mkBtn = (
-      x: number,
-      y: number,
-      label: string,
-      colors: { fill: number; stroke: number },
-      onDown: () => void,
-      onUp: () => void,
-    ) => {
-      const wrap = new Container();
-      wrap.position.set(x, y);
-      const shadow = new Graphics();
-      shadow.roundRect(4, 6, 88, 88, 22).fill({ color: 0x000000, alpha: 0.2 });
-      const face = new Graphics();
-      face
-        .roundRect(0, 0, 88, 88, 22)
-        .fill(colors.fill)
-        .stroke({ width: 3, color: colors.stroke });
-      const hi = new Graphics();
-      hi.roundRect(10, 8, 68, 22, 12).fill({ color: 0xffffff, alpha: 0.22 });
-      const t = new Text({ text: label, style: labelStyle });
-      t.anchor.set(0.5);
-      t.position.set(44, 46);
-      wrap.addChild(shadow);
-      wrap.addChild(face);
-      wrap.addChild(hi);
-      wrap.addChild(t);
-      wrap.eventMode = "static";
-      wrap.cursor = "pointer";
-      wrap.hitArea = new Rectangle(0, 0, 88, 88);
-      wrap.on("pointerdown", onDown);
-      wrap.on("pointerup", onUp);
-      wrap.on("pointerupoutside", onUp);
-      wrap.on("pointercancel", onUp);
-      this.uiLayer.addChild(wrap);
-    };
-
     const resizeUI = () => {
-      const w = this.app.screen.width;
-      const h = this.app.screen.height;
+      this.clearStickDragListeners();
+      this.touchAxisX = 0;
       this.uiLayer.removeChildren();
 
-      mkBtn(
-        16,
-        h - 108,
-        "◀",
-        { fill: 0x64b5f6, stroke: 0x1565c0 },
-        () => (this.touchInputs.left = true),
-        () => (this.touchInputs.left = false),
-      );
-      mkBtn(
-        112,
-        h - 108,
-        "▶",
-        { fill: 0x64b5f6, stroke: 0x1565c0 },
-        () => (this.touchInputs.right = true),
-        () => (this.touchInputs.right = false),
-      );
+      const w = this.app.screen.width;
+      const h = this.app.screen.height;
+      const pad = Math.max(14, Math.min(26, w * 0.035));
+      const safeBottom =
+        typeof CSS !== "undefined" &&
+        typeof CSS.supports === "function" &&
+        CSS.supports("bottom", "env(safe-area-inset-bottom)")
+          ? 28
+          : 18;
+      const bottomY = h - pad - safeBottom - outerR * 2;
 
-      mkBtn(
-        w - 104,
-        h - 108,
-        "跳",
-        { fill: 0x81c784, stroke: 0x2e7d32 },
-        () => {
-          this.touchInputs.jump = true;
-          this.jump();
-        },
-        () => (this.touchInputs.jump = false),
-      );
-      mkBtn(
-        w - 204,
-        h - 108,
-        "冲",
-        { fill: 0xffb74d, stroke: 0xef6c00 },
-        () => {
-          this.touchInputs.dash = true;
-          this.dash();
-        },
-        () => (this.touchInputs.dash = false),
-      );
+      const joystickRoot = new Container();
+      joystickRoot.position.set(pad, bottomY);
+
+      const base = new Graphics();
+      base
+        .circle(outerR, outerR, outerR)
+        .fill({ color: 0x0f172a, alpha: 0.52 })
+        .stroke({ width: 3, color: 0x475569 });
+
+      const knob = new Graphics();
+      knob
+        .circle(0, 0, innerR)
+        .fill({ color: 0xf8fafc, alpha: 0.94 })
+        .stroke({ width: 2, color: 0x64748b });
+      knob.position.set(outerR, outerR);
+
+      joystickRoot.addChild(base);
+      joystickRoot.addChild(knob);
+      joystickRoot.eventMode = "static";
+      joystickRoot.cursor = "pointer";
+      joystickRoot.hitArea = new Circle(outerR, outerR, outerR + 14);
+
+      const applyStick = (lx: number, ly: number) => {
+        const cx = outerR;
+        const cy = outerR;
+        let dx = lx - cx;
+        let dy = ly - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist < deadPx) {
+          dx = 0;
+          dy = 0;
+        } else if (dist > maxDrag) {
+          dx = (dx / dist) * maxDrag;
+          dy = (dy / dist) * maxDrag;
+        }
+        knob.position.set(cx + dx, cy + dy);
+        this.touchAxisX =
+          dist < deadPx ? 0 : Math.max(-1, Math.min(1, dx / maxDrag));
+      };
+
+      let stickPointerId: number | null = null;
+
+      const endStick = (ev: PointerEvent) => {
+        if (stickPointerId !== null && ev.pointerId !== stickPointerId) return;
+        stickPointerId = null;
+        knob.position.set(outerR, outerR);
+        this.touchAxisX = 0;
+        this.clearStickDragListeners();
+        try {
+          this.app.canvas.releasePointerCapture(ev.pointerId);
+        } catch {
+          /* not captured */
+        }
+      };
+
+      const onWindowMove = (ev: PointerEvent) => {
+        if (stickPointerId === null || ev.pointerId !== stickPointerId) return;
+        const screenPt = this.clientToScreen(ev.clientX, ev.clientY);
+        const local = joystickRoot.toLocal(screenPt, this.app.stage);
+        applyStick(local.x, local.y);
+      };
+
+      const onWindowUp = (ev: PointerEvent) => {
+        endStick(ev);
+      };
+
+      joystickRoot.on("pointerdown", (e) => {
+        if (stickPointerId !== null) return;
+        stickPointerId = e.pointerId;
+        try {
+          this.app.canvas.setPointerCapture(e.pointerId);
+        } catch {
+          /* */
+        }
+        const local = joystickRoot.toLocal(e.global, this.app.stage);
+        applyStick(local.x, local.y);
+        window.addEventListener("pointermove", onWindowMove);
+        window.addEventListener("pointerup", onWindowUp);
+        window.addEventListener("pointercancel", onWindowUp);
+        this.stickDragCleanup = () => {
+          window.removeEventListener("pointermove", onWindowMove);
+          window.removeEventListener("pointerup", onWindowUp);
+          window.removeEventListener("pointercancel", onWindowUp);
+        };
+      });
+
+      this.uiLayer.addChild(joystickRoot);
+
+      const jumpWrap = new Container();
+      jumpWrap.position.set(w - pad - jumpR * 2, bottomY + outerR * 2 - jumpR * 2);
+
+      const jumpFace = new Graphics();
+      jumpFace
+        .circle(jumpR, jumpR, jumpR)
+        .fill({ color: 0x22c55e, alpha: 0.88 })
+        .stroke({ width: 3, color: 0x14532d });
+      const jumpHi = new Graphics();
+      jumpHi
+        .circle(jumpR, jumpR - 2, jumpR * 0.55)
+        .fill({ color: 0xffffff, alpha: 0.15 });
+
+      const jumpTxt = new Text({ text: "A", style: jumpLabelStyle });
+      jumpTxt.anchor.set(0.5);
+      jumpTxt.position.set(jumpR, jumpR);
+
+      jumpWrap.addChild(jumpFace);
+      jumpWrap.addChild(jumpHi);
+      jumpWrap.addChild(jumpTxt);
+      jumpWrap.eventMode = "static";
+      jumpWrap.cursor = "pointer";
+      jumpWrap.hitArea = new Circle(jumpR, jumpR, jumpR);
+
+      const jumpDown = (e: { pointerId: number }) => {
+        try {
+          this.app.canvas.setPointerCapture(e.pointerId);
+        } catch {
+          /* */
+        }
+        this.touchInputs.jump = true;
+      };
+      const jumpUp = (e: { pointerId: number }) => {
+        try {
+          this.app.canvas.releasePointerCapture(e.pointerId);
+        } catch {
+          /* */
+        }
+        this.touchInputs.jump = false;
+      };
+
+      jumpWrap.on("pointerdown", (e) => jumpDown(e));
+      jumpWrap.on("pointerup", (e) => jumpUp(e));
+      jumpWrap.on("pointerupoutside", (e) => jumpUp(e));
+      jumpWrap.on("pointercancel", (e) => jumpUp(e));
+
+      this.uiLayer.addChild(jumpWrap);
     };
 
     resizeUI();
+    this.resizeUiHandler = resizeUI;
     window.addEventListener("resize", resizeUI);
   }
 
-  /** 仅在地面上且非冲刺中可起跳 */
-  private jump() {
-    if (this.isGrounded && !this.isDashing) {
-      this.vy = -config.jumpForce;
-      this.isGrounded = false;
-    }
-  }
-
-  /** 触发冲刺并进入冷却；冷却中或已在冲刺中则忽略 */
-  private dash() {
-    if (this.dashCooldownTimer <= 0 && !this.isDashing) {
-      this.isDashing = true;
-      this.dashTimer = config.dashDuration;
-      this.dashCooldownTimer = config.dashCooldown;
-      this.vy = 0;
-    }
-  }
-
-  /** 轴对齐矩形相交检测 */
-  private rectsOverlap(
-    ax: number,
-    ay: number,
-    aw: number,
-    ah: number,
-    b: Rect,
-  ): boolean {
+  private rectsOverlap(ax: number, ay: number, aw: number, ah: number, b: Rect): boolean {
     return ax < b.x + b.w && ax + aw > b.x && ay < b.y + b.h && ay + ah > b.y;
   }
 
-  /**
-   * 单帧：输入 → 冲刺/重力 → 先水平位移并解水平碰撞，再垂直位移解垂直碰撞，
-   * 然后 hazard/终点/摔落判定，最后平滑跟随相机与绘制。
-   */
-  private update(ticker: Ticker) {
-    this.animTick += ticker.deltaMS * 0.06;
+  private resolvePlayerAxis(horizontal: boolean) {
+    const pw = this.pw();
+    const ph = this.ph();
+    let px = this.player.x;
+    let py = this.player.y;
 
-    let targetVx = 0;
-    if (this.keys["ArrowLeft"] || this.keys["KeyA"] || this.touchInputs.left)
-      targetVx -= config.speed;
-    if (this.keys["ArrowRight"] || this.keys["KeyD"] || this.touchInputs.right)
-      targetVx += config.speed;
+    for (let iter = 0; iter < 6; iter++) {
+      let moved = false;
+      for (const s of this.solids) {
+        if (!this.rectsOverlap(px, py, pw, ph, s)) continue;
 
-    if (targetVx > 0) this.facing = 1;
-    else if (targetVx < 0) this.facing = -1;
+        if (horizontal) {
+          if (this.vx > 0) {
+            px = s.x - pw;
+          } else if (this.vx < 0) {
+            px = s.x + s.w;
+          }
+          this.vx = 0;
+          moved = true;
+        } else {
+          if (this.vy > 0) {
+            py = s.y - ph;
+            this.isGrounded = true;
+          } else if (this.vy < 0) {
+            py = s.y + s.h;
+            if (s.kind === "block" && s.blockId !== undefined) {
+              this.hitBlockFromBelow(s.blockId);
+            }
+          }
+          this.vy = 0;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
 
-    if (this.dashCooldownTimer > 0) {
-      this.dashCooldownTimer--;
-      if (this.onDashCooldownUpdate) {
-        this.onDashCooldownUpdate(
-          1 - this.dashCooldownTimer / config.dashCooldown,
-        );
+    this.player.x = px;
+    this.player.y = py;
+  }
+
+  private hitBlockFromBelow(id: number) {
+    const b = this.blocks[id];
+    if (!b || b.bump > 0) return;
+
+    b.bump = 1;
+    if (b.kind === "question" && !b.used) {
+      b.used = true;
+      if (b.loot === "mushroom") {
+        this.spawnMushroomFromBlock(b);
+      } else {
+        this.coins += 1;
+        this.score += 200;
+        if (this.coins >= 100) {
+          this.coins -= 100;
+          this.lives += 1;
+        }
+      }
+      b.gfx.removeChildren();
+      b.gfx.addChild(createUsedBlock());
+    }
+  }
+
+  private spawnMushroomFromBlock(b: BlockData) {
+    const m: MushroomData = {
+      alive: true,
+      x: b.x + (TILE - MUSHROOM_W) / 2,
+      y: b.y - MUSHROOM_H - 2,
+      vx: 1.25,
+      vy: 0,
+      gfx: new Container(),
+    };
+    m.gfx.addChild(createMushroomGraphics());
+    m.gfx.position.set(m.x, m.y);
+    this.world.addChild(m.gfx);
+    this.mushrooms.push(m);
+  }
+
+  private updateBlockBumps(ticker: Ticker) {
+    const dt = ticker.deltaMS / 16.67;
+    for (const b of this.blocks) {
+      if (b.bump <= 0) continue;
+      b.bump -= 0.14 * dt;
+      const amp = Math.max(0, b.bump);
+      b.gfx.y = b.y - Math.sin(amp * Math.PI) * 10;
+      if (b.bump <= 0) {
+        b.bump = 0;
+        b.gfx.y = b.y;
       }
     }
+  }
 
-    if (this.isDashing) {
-      this.dashTimer--;
-      const dashDir = targetVx !== 0 ? Math.sign(targetVx) : this.facing;
-      this.vx = dashDir * config.dashSpeed;
-      this.vy = 0;
-      if (this.dashTimer <= 0) this.isDashing = false;
-    } else {
-      this.vx = targetVx;
-      this.vy += config.gravity;
+  private moveGoomba(g: GoombaData) {
+    if (!g.alive) return;
+
+    g.vy += physics.gravity;
+    g.x += g.vx;
+    this.resolveMobHorizontal(g, GOOMBA_W, GOOMBA_H);
+
+    g.y += g.vy;
+    this.resolveMobVertical(g, GOOMBA_W, GOOMBA_H);
+
+    if (g.y > levelData.height + 60) {
+      g.alive = false;
+      g.gfx.visible = false;
     }
 
+    g.gfx.position.set(g.x, g.y);
+  }
+
+  private resolveMobHorizontal(g: GoombaData, w: number, h: number) {
+    for (let iter = 0; iter < 5; iter++) {
+      let hit = false;
+      for (const s of this.solids) {
+        if (!this.rectsOverlap(g.x, g.y, w, h, s)) continue;
+        if (g.vx > 0) {
+          g.x = s.x - w;
+          g.vx = -Math.abs(g.vx);
+          hit = true;
+        } else if (g.vx < 0) {
+          g.x = s.x + s.w;
+          g.vx = Math.abs(g.vx);
+        }
+      }
+      if (!hit) break;
+    }
+  }
+
+  private resolveMobVertical(g: GoombaData, w: number, h: number) {
+    for (let iter = 0; iter < 5; iter++) {
+      let hit = false;
+      for (const s of this.solids) {
+        if (!this.rectsOverlap(g.x, g.y, w, h, s)) continue;
+        if (g.vy > 0) {
+          g.y = s.y - h;
+          g.vy = 0;
+          hit = true;
+        } else if (g.vy < 0) {
+          g.y = s.y + s.h;
+          g.vy = 0;
+          hit = true;
+        }
+      }
+      if (!hit) break;
+    }
+  }
+
+  private checkStompAndDamage() {
+    const px = this.player.x;
+    const py = this.player.y;
+    const pw = this.pw();
+    const ph = this.ph();
+
+    for (const g of this.goombas) {
+      if (!g.alive) continue;
+      if (!this.rectsOverlap(px, py, pw, ph, { x: g.x, y: g.y, w: GOOMBA_W, h: GOOMBA_H }))
+        continue;
+
+      const stomp =
+        this.vy > 0.35 &&
+        py + ph <= g.y + GOOMBA_H * 0.55;
+
+      if (stomp) {
+        g.alive = false;
+        g.gfx.visible = false;
+        this.score += 100;
+        this.vy = physics.stompBounce;
+        this.isGrounded = false;
+      } else if (!this.won && !this.frozen && this.deathSequenceMs <= 0) {
+        this.hitByEnemy();
+        break;
+      }
+    }
+  }
+
+  private checkPiranhaHits() {
+    if (this.won || this.frozen || this.deathSequenceMs > 0 || this.iframes > 0) return;
+    const px = this.player.x;
+    const py = this.player.y;
+    const pw = this.pw();
+    const ph = this.ph();
+
+    for (const pr of this.piranhas) {
+      const up = (Math.sin(this.animTick * 0.042 + pr.phase) + 1) / 2;
+      if (up < 0.3) continue;
+      const plantY = pr.pipeTop - up * pr.emergeMax - PIRANHA_H;
+      const hurt: Rect = {
+        x: pr.baseX + 8,
+        y: plantY + 18,
+        w: PIRANHA_W - 16,
+        h: PIRANHA_H - 22,
+      };
+      if (this.rectsOverlap(px, py, pw, ph, hurt)) {
+        this.hitByEnemy();
+        break;
+      }
+    }
+  }
+
+  private hitByEnemy() {
+    if (this.iframes > 0) return;
+    if (this.isBig) {
+      this.isBig = false;
+      this.player.y += PLAYER_BIG_H - PLAYER_H;
+      this.iframes = 110;
+      return;
+    }
+    this.triggerDeath();
+  }
+
+  private triggerDeath() {
+    if (this.deathSequenceMs > 0 || this.won) return;
+    this.vx = 0;
+    this.vy = 0;
+    this.startDeathSequence();
+  }
+
+  private startDeathSequence() {
+    this.deathSequenceMs = 880;
+    const cx = this.player.x + this.pw() / 2;
+    const cy = this.player.y + this.ph() / 2;
+    const colors = [0xe01010, 0x2060d0, 0xf8b890, 0xffd54f, 0xffffff];
+    for (let i = 0; i < 16; i++) {
+      const g = new Graphics();
+      g.roundRect(-4, -4, 8, 8, 2).fill(colors[i % colors.length]!);
+      g.position.set(cx + (Math.random() - 0.5) * 20, cy + (Math.random() - 0.5) * 16);
+      this.world.addChild(g);
+      this.deathParticles.push({
+        g,
+        vx: (Math.random() - 0.5) * 6,
+        vy: -Math.random() * 5 - 1.5,
+        life: 1,
+      });
+    }
+    this.player.visible = false;
+  }
+
+  private updateDeathSequence(ticker: Ticker) {
+    this.deathSequenceMs -= ticker.deltaMS;
+    const dt = ticker.deltaMS / 16.67;
+    for (const p of this.deathParticles) {
+      p.life -= 0.011 * dt;
+      p.g.x += p.vx * dt;
+      p.g.y += p.vy * dt;
+      p.vy += 0.34 * dt;
+      p.g.alpha = Math.max(0, p.life);
+      p.g.rotation += 0.12 * dt;
+    }
+    this.deathParticles = this.deathParticles.filter((p) => p.life > 0.02);
+
+    if (this.deathSequenceMs <= 0) {
+      this.clearDeathParticles();
+      this.player.visible = true;
+      this.applyLifeLossAndRespawn();
+    }
+  }
+
+  private clearDeathParticles() {
+    for (const p of this.deathParticles) {
+      this.world.removeChild(p.g);
+      p.g.destroy();
+    }
+    this.deathParticles = [];
+  }
+
+  private applyLifeLossAndRespawn() {
+    this.lives -= 1;
+    this.score = Math.max(0, this.score - 200);
+    this.isBig = false;
+    if (this.lives <= 0) {
+      this.frozen = true;
+      this.lives = 0;
+      if (this.onGameOver) this.onGameOver();
+      this.lives = 3;
+      this.timeLeft = levelData.timeLimit;
+      this.score = 0;
+      this.coins = 0;
+      this.frozen = false;
+      this.won = false;
+      this.resetLevelEntities();
+      this.respawn(true);
+      return;
+    }
+    this.timeLeft = levelData.timeLimit;
+    this.respawn(true);
+  }
+
+  private moveMushroom(m: MushroomData) {
+    if (!m.alive) return;
+    m.vy += physics.gravity;
+    m.x += m.vx;
+    this.resolveMushroomHorizontal(m);
+    m.y += m.vy;
+    this.resolveMushroomVertical(m);
+    if (m.y > levelData.height + 60) {
+      m.alive = false;
+      m.gfx.visible = false;
+    }
+    m.gfx.position.set(m.x, m.y);
+  }
+
+  private resolveMushroomHorizontal(m: MushroomData) {
+    for (let iter = 0; iter < 5; iter++) {
+      let hit = false;
+      for (const s of this.solids) {
+        if (!this.rectsOverlap(m.x, m.y, MUSHROOM_W, MUSHROOM_H, s)) continue;
+        if (m.vx > 0) {
+          m.x = s.x - MUSHROOM_W;
+          m.vx = -Math.abs(m.vx);
+          hit = true;
+        } else if (m.vx < 0) {
+          m.x = s.x + s.w;
+          m.vx = Math.abs(m.vx);
+        }
+      }
+      if (!hit) break;
+    }
+  }
+
+  private resolveMushroomVertical(m: MushroomData) {
+    for (let iter = 0; iter < 5; iter++) {
+      let hit = false;
+      for (const s of this.solids) {
+        if (!this.rectsOverlap(m.x, m.y, MUSHROOM_W, MUSHROOM_H, s)) continue;
+        if (m.vy > 0) {
+          m.y = s.y - MUSHROOM_H;
+          m.vy = 0;
+          hit = true;
+        } else if (m.vy < 0) {
+          m.y = s.y + s.h;
+          m.vy = 0;
+          hit = true;
+        }
+      }
+      if (!hit) break;
+    }
+  }
+
+  private checkMushroomPickup() {
+    const px = this.player.x;
+    const py = this.player.y;
+    const pw = this.pw();
+    const ph = this.ph();
+    for (const m of this.mushrooms) {
+      if (!m.alive) continue;
+      if (
+        !this.rectsOverlap(px, py, pw, ph, {
+          x: m.x,
+          y: m.y,
+          w: MUSHROOM_W,
+          h: MUSHROOM_H,
+        })
+      )
+        continue;
+      m.alive = false;
+      m.gfx.visible = false;
+      this.score += 1000;
+      if (!this.isBig) {
+        this.isBig = true;
+        this.player.y -= PLAYER_BIG_H - PLAYER_H;
+      }
+    }
+  }
+
+  private updatePiranhaGraphics() {
+    for (const pr of this.piranhas) {
+      drawPiranhaHead(pr.head, this.animTick + pr.phase * 10);
+      const up = (Math.sin(this.animTick * 0.042 + pr.phase) + 1) / 2;
+      const plantY = pr.pipeTop - up * pr.emergeMax - PIRANHA_H;
+      pr.gfx.position.set(pr.baseX, plantY);
+    }
+  }
+
+  private resetLevelEntities() {
+    for (const m of this.mushrooms) {
+      this.world.removeChild(m.gfx);
+      m.gfx.destroy({ children: true });
+    }
+    this.mushrooms = [];
+
+    for (const b of this.blocks) {
+      b.used = false;
+      b.bump = 0;
+      b.gfx.y = b.y;
+      b.gfx.removeChildren();
+      b.gfx.addChild(b.kind === "question" ? createQuestionBlock() : createBrickBlock());
+    }
+    let i = 0;
+    for (const g of levelData.goombas) {
+      const gd = this.goombas[i++];
+      if (!gd) continue;
+      gd.alive = true;
+      gd.gfx.visible = true;
+      gd.x = g.x;
+      gd.y = g.y;
+      gd.vx = -physics.goombaSpeed;
+      gd.vy = 0;
+      gd.gfx.position.set(g.x, g.y);
+    }
+  }
+
+  private drawPlayerCharacter() {
+    if (!this.player.visible) return;
+    if (this.iframes > 0 && this.deathSequenceMs <= 0) {
+      this.player.alpha = 0.28 + Math.abs(Math.sin(this.animTick * 0.88)) * 0.72;
+    } else {
+      this.player.alpha = 1;
+    }
+    if (this.isBig) {
+      drawMarioBig(this.playerVis.body, this.facing, this.isGrounded, this.animTick);
+    } else {
+      drawMarioSmall(this.playerVis.body, this.facing, this.isGrounded, this.animTick);
+    }
+  }
+
+  private update(ticker: Ticker) {
+    this.animTick += ticker.deltaMS * 0.08;
+    this.updatePiranhaGraphics();
+
+    if (this.won) {
+      this.updateBlockBumps(ticker);
+      this.updateCamera();
+      this.drawPlayerCharacter();
+      return;
+    }
+
+    if (this.deathSequenceMs > 0) {
+      this.updateDeathSequence(ticker);
+      this.updateCamera();
+      return;
+    }
+
+    if (this.frozen) {
+      this.drawPlayerCharacter();
+      return;
+    }
+
+    if (this.iframes > 0) this.iframes--;
+
+    const stickDead = 0.14;
+    const touchLeft = this.touchAxisX < -stickDead;
+    const touchRight = this.touchAxisX > stickDead;
+    const left = this.keys["ArrowLeft"] || this.keys["KeyA"] || touchLeft;
+    const right = this.keys["ArrowRight"] || this.keys["KeyD"] || touchRight;
+    const jumpHeld =
+      this.keys["Space"] || this.keys["ArrowUp"] || this.keys["KeyW"] || this.touchInputs.jump;
+
+    const jumpEdge = jumpHeld && !this.prevJump;
+    this.prevJump = jumpHeld;
+
+    if (jumpEdge && this.isGrounded) {
+      this.jumpQueued = true;
+    }
+
+    const kbOnlyLeft = this.keys["ArrowLeft"] || this.keys["KeyA"];
+    const kbOnlyRight = this.keys["ArrowRight"] || this.keys["KeyD"];
+    const input = (right ? 1 : 0) - (left ? 1 : 0);
+    const touchAnalog =
+      !kbOnlyLeft &&
+      !kbOnlyRight &&
+      Math.abs(this.touchAxisX) > stickDead
+        ? Math.min(1, Math.abs(this.touchAxisX))
+        : 1;
+    if (input !== 0) {
+      this.facing = input > 0 ? 1 : -1;
+      this.vx += input * physics.walkAccel * touchAnalog;
+      if (Math.abs(this.vx) > physics.walkMax) {
+        this.vx = Math.sign(this.vx) * physics.walkMax;
+      }
+      if (this.vx * input < 0) {
+        this.vx += input * physics.walkAccel * 0.55 * touchAnalog;
+      }
+    } else {
+      const slip = Math.min(Math.abs(this.vx), physics.friction);
+      this.vx -= Math.sign(this.vx || 1) * slip;
+      if (Math.abs(this.vx) < 0.04) this.vx = 0;
+    }
+
+    if (this.jumpQueued && this.isGrounded) {
+      this.vy = physics.jumpVel;
+      this.isGrounded = false;
+      this.jumpQueued = false;
+      this.jumpCutDone = false;
+    }
+
+    this.vy += physics.gravity;
+    if (!jumpHeld && !this.jumpCutDone && this.vy < -3) {
+      this.vy *= physics.jumpCut;
+      this.jumpCutDone = true;
+    }
+    const maxFall = 14;
+    if (this.vy > maxFall) this.vy = maxFall;
+
     this.player.x += this.vx;
-    this.checkPlatformCollisions(true);
+    this.resolvePlayerAxis(true);
 
     this.player.y += this.vy;
     this.isGrounded = false;
-    this.checkPlatformCollisions(false); // 落地时在此将 isGrounded 置 true
+    this.resolvePlayerAxis(false);
 
-    if (this.checkHazardOverlap()) this.respawn();
+    if (this.isGrounded) {
+      this.jumpCutDone = false;
+    }
+
+    for (const g of this.goombas) {
+      this.moveGoomba(g);
+    }
+
+    for (const m of this.mushrooms) {
+      this.moveMushroom(m);
+    }
+
+    this.checkStompAndDamage();
+    this.checkPiranhaHits();
+    this.checkMushroomPickup();
+
+    this.updateBlockBumps(ticker);
 
     if (
       this.rectsOverlap(
         this.player.x,
         this.player.y,
-        PLAYER_W,
-        PLAYER_H,
-        this.goalRect,
+        this.pw(),
+        this.ph(),
+        this.flagTouch,
       )
     ) {
-      if (this.onLevelComplete) this.onLevelComplete();
-      this.respawn();
+      if (!this.won) {
+        this.won = true;
+        this.score += 5000;
+        const bonus = Math.max(0, this.timeLeft) * 50;
+        this.score += bonus;
+        this.timeLeft = 0;
+        if (this.onLevelComplete) this.onLevelComplete();
+      }
     }
 
-    if (this.player.y > levelData.height + 200) this.respawn();
+    if (this.player.y > levelData.height + 120) {
+      this.triggerDeath();
+    }
 
-    // 通过移动 world 实现相机：目标为玩家居中，略偏下；X 轴钳制在关卡范围内
-    const targetCamX = -this.player.x + this.app.screen.width / 2;
-    const targetCamY = -this.player.y + this.app.screen.height / 2 + 100;
-    this.world.x += (targetCamX - this.world.x) * 0.1;
-    this.world.y += (targetCamY - this.world.y) * 0.1;
-    this.world.x = Math.min(
-      0,
-      Math.max(this.world.x, -(levelData.width - this.app.screen.width)),
-    );
-
-    this.bgLayer.x = this.world.x * 0.18;
-    this.bgLayer.y = this.world.y * 0.12;
-
-    const portalPulse = 0.78 + Math.sin(this.animTick * 0.08) * 0.12;
-    this.goalPortal.alpha = portalPulse;
-
-    drawPlayerBody(
-      this.playerVis.body,
-      this.playerVis.face,
-      this.playerVis.dashAura,
-      this.facing,
-      this.isGrounded,
-      this.isDashing,
-      this.animTick,
-    );
-    this.playerVis.shadow.scale.x = 1 + Math.min(1, Math.abs(this.vx) / 12) * 0.12;
-  }
-
-  /**
-   * 与所有平台依次解析重叠：水平阶段修正 X 并清零 vx；垂直阶段修正 Y、清零 vy，
-   * 自下而上碰撞时标记落地。
-   */
-  private checkPlatformCollisions(isHorizontal: boolean) {
-    const px = this.player.x;
-    const py = this.player.y;
-    const pw = PLAYER_W;
-    const ph = PLAYER_H;
-
-    for (const plat of this.platformRects) {
-      if (!this.rectsOverlap(px, py, pw, ph, plat)) continue;
-
-      if (isHorizontal) {
-        if (this.vx > 0) this.player.x = plat.x - pw;
-        else if (this.vx < 0) this.player.x = plat.x + plat.w;
-        this.vx = 0;
-      } else {
-        if (this.vy > 0) {
-          this.player.y = plat.y - ph;
-          this.isGrounded = true;
-        } else if (this.vy < 0) {
-          this.player.y = plat.y + plat.h;
+    this.timeAccMs += ticker.deltaMS;
+    if (this.timeAccMs >= 1000) {
+      this.timeAccMs -= 1000;
+      if (this.timeLeft > 0) {
+        this.timeLeft -= 1;
+        if (this.timeLeft <= 0) {
+          this.triggerDeath();
         }
-        this.vy = 0;
       }
     }
+
+    this.updateCamera();
+    this.drawPlayerCharacter();
+    this.emitHud(false);
   }
 
-  /** 与尖刺逻辑盒重叠则视为死亡，由调用方 respawn */
-  private checkHazardOverlap(): boolean {
-    for (const s of this.spikeRects) {
-      if (
-        this.rectsOverlap(
-          this.player.x,
-          this.player.y,
-          PLAYER_W,
-          PLAYER_H,
-          s,
-        )
-      ) {
-        return true;
-      }
-    }
-    return false;
+  private emitHud(force: boolean) {
+    if (!this.onHudUpdate) return;
+    const now = performance.now();
+    if (!force && now - this.lastHudEmit < 120) return;
+    this.lastHudEmit = now;
+    this.onHudUpdate({
+      score: this.score,
+      coins: this.coins,
+      lives: this.lives,
+      world: "WORLD 1-1",
+      time: this.timeLeft,
+    });
   }
 
-  /** 卸载画布与 Pixi 资源 */
+  private updateCamera() {
+    const margin = 96;
+    const targetCamX = -this.player.x + this.app.screen.width / 2 - margin * 0.35;
+    const minX = -(levelData.width - this.app.screen.width);
+    const maxX = 0;
+    this.world.x += (targetCamX - this.world.x) * 0.14;
+    this.world.x = Math.min(maxX, Math.max(minX, this.world.x));
+
+    const targetCamY = -this.player.y + this.app.screen.height * 0.52;
+    const minY = -(levelData.height - this.app.screen.height) - 40;
+    const maxY = 80;
+    this.world.y += (targetCamY - this.world.y) * 0.12;
+    this.world.y = Math.min(maxY, Math.max(minY, this.world.y));
+
+    this.bgLayer.x = this.world.x * 0.12;
+    this.bgLayer.y = this.world.y * 0.08;
+  }
+
   public destroy() {
+    this.clearStickDragListeners();
+    this.clearDeathParticles();
+    if (this.resizeUiHandler) {
+      window.removeEventListener("resize", this.resizeUiHandler);
+    }
     this.app.destroy(true, { children: true });
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import "./game-play.css";
-import type { MarioHudState } from "@game/shadow-dash";
+import type { MarioHudState } from "@game/super-mario";
 import Link from "next/link";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { GameOverlay } from "./GameOverlay";
@@ -252,8 +252,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
     const initGame = async () => {
       // Pixi 横版游戏：包内自管画布与物理，经回调同步冲刺冷却等
-      if (slug === "shadow-dash") {
-        const { mountGame, unmountGame } = await import("@game/shadow-dash");
+      if (slug === "super-mario") {
+        const { mountGame, unmountGame } = await import("@game/super-mario");
         if (cancelled) return;
         unmountFn = unmountGame;
         await mountGame("pixi-canvas-container", {
@@ -326,9 +326,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             }
             aria-pressed={manualLandscape}
             aria-label={
-              manualLandscape
-                ? "退出横屏模式"
-                : "横屏模式：全屏并尝试锁定横屏"
+              manualLandscape ? "退出横屏模式" : "横屏模式：全屏并尝试锁定横屏"
             }
           >
             <span className="game-landscape-fab-icon" aria-hidden>
@@ -350,7 +348,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <GameOverlay
             levelName={`L1-1 · ${slug}`}
             timeElapsed={timeElapsed}
-            marioHud={slug === "shadow-dash" ? marioHud : null}
+            marioHud={slug === "super-mario" ? marioHud : null}
             showPrompts={true}
           />
         </div>

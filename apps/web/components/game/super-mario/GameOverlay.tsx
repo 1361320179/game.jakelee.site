@@ -1,5 +1,5 @@
 import React from "react";
-import type { MarioHudState } from "@game/shadow-dash";
+import type { MarioHudState } from "@game/super-mario";
 import { TopHUD } from "./TopHUD";
 import { DashMeter } from "./DashMeter";
 import { KeyPrompts } from "./KeyPrompts";
@@ -25,7 +25,7 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
 
   return (
     <div
-      className={`game-overlay ${isMario ? "game-overlay--mario game-overlay--touch-game" : ""} font-cartoon`}
+      className={`game-overlay ${isMario ? "game-overlay--mario game-overlay--touch-game font-pixel" : "font-cartoon"}`}
     >
       <div className="game-overlay-inner">
         <TopHUD

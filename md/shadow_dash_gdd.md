@@ -153,7 +153,7 @@ const playerConfig = {
   DashMeter.tsx      # Dash 冷却条
   KeyPrompts.tsx     # 操作提示
 
-/packages/games/game-shadow-dash
+/packages/games/super-mario
   package.json       # 独立依赖 (PixiJS)
   /src
     index.ts         # 暴露 mountGame(containerId)
@@ -162,7 +162,7 @@ const playerConfig = {
     /systems         # 物理碰撞、重力计算、Dash状态机
     /config          # 玩家移动速度、跳跃力度等参数
 
-/packages/content/games/shadow-dash
+/packages/content/games/super-mario
   metadata.json      # 游戏标题、简介、封面
   /levels
     level-1.json     # 关卡平台和地刺坐标数据

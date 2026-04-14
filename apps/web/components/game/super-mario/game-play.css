@@ -133,6 +133,8 @@ html.game-play-active body {
 
 .game-pixi-mount canvas {
   touch-action: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .game-play-exit {

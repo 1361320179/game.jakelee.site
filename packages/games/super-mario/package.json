@@ -1,5 +1,5 @@
 {
-  "name": "@game/shadow-dash",
+  "name": "@game/super-mario",
   "version": "0.1.0",
   "private": true,
   "main": "src/index.ts",

@@ -17,7 +17,8 @@
     "paths": {
       "@game/content": ["packages/content/src/index.ts"],
       "@game/shared/*": ["packages/shared/src/*"],
-      "@game/ui/*": ["packages/ui/src/*"]
+      "@game/ui/*": ["packages/ui/src/*"],
+      "@game/super-mario": ["packages/games/super-mario/src/index.ts"]
     }
   }
 }

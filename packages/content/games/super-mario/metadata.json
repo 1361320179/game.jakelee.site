@@ -1,7 +1,7 @@
 {
-  "id": "shadow-dash",
+  "id": "super-mario",
   "title": "Shadow Dash",
   "description": "A fast-paced platformer with dash mechanics.",
-  "coverImage": "/images/shadow-dash-cover.jpg",
+  "coverImage": "/images/super-mario-cover.jpg",
   "releaseDate": "2026-04-10"
 }

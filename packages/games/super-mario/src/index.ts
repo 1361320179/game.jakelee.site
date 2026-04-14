@@ -2,7 +2,7 @@
  * 供 Next 等宿主动态加载：在指定 DOM 节点挂载 / 卸载 Pixi 游戏实例。
  * 同时只允许一个活跃实例，避免重复 init。
  */
-import type { MarioHudState } from "./Game";
+import type { MarioHudState } from "./mario/core/marioGameTypes";
 import { ShadowDashGame } from "./Game";
 
 export type { MarioHudState };

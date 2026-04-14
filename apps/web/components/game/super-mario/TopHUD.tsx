@@ -1,5 +1,5 @@
 import React from "react";
-import type { MarioHudState } from "@game/shadow-dash";
+import type { MarioHudState } from "@game/super-mario";
 
 interface TopHUDProps {
   levelName: string;
@@ -29,20 +29,28 @@ export const TopHUD: React.FC<TopHUDProps> = ({
   if (marioHud) {
     return (
       <div className="top-hud top-hud--mario">
-        <div className="mario-hud font-pixel" aria-live="polite">
+        <div className="mario-hud" aria-live="polite">
           <div className="mario-hud-col">
             <span className="mario-hud-label">MARIO</span>
             <span className="mario-hud-value">{padScore(marioHud.score)}</span>
           </div>
-          <div className="mario-hud-col">
+          <div className="mario-hud-col mario-hud-col--coin">
             <span className="mario-hud-label" aria-hidden>
-              ◎
+              <img
+                className="mario-hud-coin"
+                src="/games/super-mario/hud-coin.svg"
+                width={16}
+                height={16}
+                alt=""
+              />
             </span>
             <span className="mario-hud-value">×{marioHud.coins.toString().padStart(2, "0")}</span>
           </div>
           <div className="mario-hud-col mario-hud-col--world">
             <span className="mario-hud-label">WORLD</span>
-            <span className="mario-hud-value">1-1</span>
+            <span className="mario-hud-value">
+              {marioHud.world.replace(/^WORLD\s+/i, "").trim() || "1-1"}
+            </span>
           </div>
           <div className="mario-hud-col mario-hud-col--time">
             <span className="mario-hud-label">TIME</span>

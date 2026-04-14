@@ -16,7 +16,7 @@ export type Metric = {
 export type FeaturedGame = {
   /** URL slug under /games/[slug] */
   slug: string;
-  /** Public path e.g. /images/shadow-dash-cover.svg */
+  /** Public path e.g. /images/super-mario-cover.svg */
   coverImage: string;
   coverImageAlt: string;
   title: string;
@@ -37,7 +37,7 @@ export type GameCard = {
   genre: string;
   platform: string;
   status: string;
-  /** Optional cover under public/, e.g. /images/shadow-dash-cover.svg */
+  /** Optional cover under public/, e.g. /images/super-mario-cover.svg */
   coverImage?: string;
   coverImageAlt?: string;
 };
@@ -73,7 +73,7 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
         "A React-based home for experimental H5 games. The visual shell is ready. Real releases, media, and devlogs can drop in without changing the structure.",
       primaryCta: {
         label: "Play Shadow Dash",
-        href: "/games/shadow-dash",
+        href: "/games/super-mario",
       },
       secondaryCta: {
         label: "Browse Game Matrix",
@@ -81,8 +81,8 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
       },
     },
     featuredGame: {
-      slug: "shadow-dash",
-      coverImage: "/images/shadow-dash-cover.svg",
+      slug: "super-mario",
+      coverImage: "/images/super-mario-cover.svg",
       coverImageAlt: "Shadow Dash — cartoon platformer screenshot",
       title: "Shadow Dash",
       tagline: "Dash through a bright cartoon world — PC & mobile.",
@@ -98,7 +98,7 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
       ],
       primaryCta: {
         label: "Play now",
-        href: "/games/shadow-dash",
+        href: "/games/super-mario",
       },
       secondaryCta: {
         label: "All games",
@@ -107,14 +107,14 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
     },
     games: [
       {
-        slug: "shadow-dash",
+        slug: "super-mario",
         title: "Shadow Dash",
         summary:
           "Cartoon platformer with dash cooldown, spikes, and a clear goal — playable in the browser.",
         genre: "Platformer",
         platform: "Web",
         status: "Playable",
-        coverImage: "/images/shadow-dash-cover.svg",
+        coverImage: "/images/super-mario-cover.svg",
         coverImageAlt: "Shadow Dash screenshot",
       },
       {
@@ -202,7 +202,7 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
         "一个面向实验性 H5 游戏的 React 站点骨架已经就位。后续接入真实作品、媒体资源和开发日志时，不需要重做整体结构。",
       primaryCta: {
         label: "试玩 Shadow Dash",
-        href: "/games/shadow-dash",
+        href: "/games/super-mario",
       },
       secondaryCta: {
         label: "查看游戏矩阵",
@@ -210,8 +210,8 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
       },
     },
     featuredGame: {
-      slug: "shadow-dash",
-      coverImage: "/images/shadow-dash-cover.svg",
+      slug: "super-mario",
+      coverImage: "/images/super-mario-cover.svg",
       coverImageAlt: "Shadow Dash（影跃）卡通平台跳跃游戏画面",
       title: "Shadow Dash（影跃）",
       tagline: "明亮卡通风横版平台跳跃，支持手机与电脑。",
@@ -227,7 +227,7 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
       ],
       primaryCta: {
         label: "立即开玩",
-        href: "/games/shadow-dash",
+        href: "/games/super-mario",
       },
       secondaryCta: {
         label: "全部游戏",
@@ -236,14 +236,13 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
     },
     games: [
       {
-        slug: "shadow-dash",
+        slug: "super-mario",
         title: "Shadow Dash（影跃）",
-        summary:
-          "带冲刺冷却与地刺的卡通平台跳跃，浏览器内直接游玩。",
+        summary: "带冲刺冷却与地刺的卡通平台跳跃，浏览器内直接游玩。",
         genre: "平台跳跃",
         platform: "Web",
         status: "可玩",
-        coverImage: "/images/shadow-dash-cover.svg",
+        coverImage: "/images/super-mario-cover.svg",
         coverImageAlt: "Shadow Dash 游戏画面",
       },
       {
@@ -300,7 +299,8 @@ const homePageContentByLocale: Record<SiteLocale, HomePageContent> = {
         date: "YYYY-MM-DD",
         version: "LOG-002",
         title: "内容位已预留",
-        summary: "当首个真实项目的素材、文案和链接准备好后，可以直接替换到这里。",
+        summary:
+          "当首个真实项目的素材、文案和链接准备好后，可以直接替换到这里。",
       },
       {
         slug: "next-drop",

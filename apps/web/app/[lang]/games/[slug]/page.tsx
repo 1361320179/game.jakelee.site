@@ -1,5 +1,5 @@
 import { getLocaleDictionary } from "../../../../lib/i18n/server";
-import { GameContainer } from "../../../../components/game/shadow-dash/GameContainer";
+import { GameContainer } from "../../../../components/game/super-mario/GameContainer";
 
 type GameDetailPageProps = {
   params: Promise<{ lang: string; slug: string }>;

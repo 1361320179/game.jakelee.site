@@ -1,0 +1,70 @@
+@media (prefers-reduced-motion: reduce) {
+  .hero-preview.hero-preview--game,
+  .feature-screen--cover,
+  .game-card-link {
+    transition: none;
+  }
+
+  .hero-preview.hero-preview--game:hover,
+  .feature-screen--cover:hover,
+  .game-card-link:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .hero-section,
+  .feature-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-section {
+    min-height: auto;
+    padding-top: 84px;
+    padding-bottom: 56px;
+  }
+
+  .game-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .game-card-featured {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .hero-copy,
+  .hero-preview,
+  .feature-panel,
+  .game-card,
+  .devlog-card,
+  .site-footer {
+    border-radius: 20px;
+  }
+
+  .hero-copy,
+  .hero-preview,
+  .feature-panel,
+  .site-footer,
+  .devlog-card {
+    padding: 16px;
+  }
+
+  .game-grid,
+  .feature-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .game-card-featured {
+    grid-column: auto;
+  }
+
+  .devlog-board {
+    grid-template-columns: 1fr;
+  }
+
+  .devlog-rail {
+    display: none;
+  }
+}

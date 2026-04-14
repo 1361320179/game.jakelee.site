@@ -1,3 +1,4 @@
+import "../../components/home/home.css";
 import { getHomePageContent } from "@game/content";
 import { SiteFooter } from "../../components/layout/site-footer";
 import { SiteHeader } from "../../components/layout/site-header";

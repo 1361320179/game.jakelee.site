@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Fredoka, Press_Start_2P } from "next/font/google";
 import "../../styles/globals.css";
+import "../../components/layout/site-chrome.css";
 import { getLocaleDictionary } from "../../lib/i18n/server";
 import { locales } from "../../lib/i18n/config";
 

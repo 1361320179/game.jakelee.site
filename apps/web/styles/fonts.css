@@ -1,0 +1,7 @@
+.font-pixel {
+  font-family: var(--font-press-start-2p), "Consolas", "Courier New", monospace;
+}
+
+.font-cartoon {
+  font-family: var(--font-fredoka), "Fredoka", system-ui, sans-serif;
+}

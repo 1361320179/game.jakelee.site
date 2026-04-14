@@ -1,5 +1,6 @@
 "use client";
 
+import "./game-play.css";
 import type { MarioHudState } from "@game/shadow-dash";
 import Link from "next/link";
 import React, { useCallback, useEffect, useRef, useState } from "react";

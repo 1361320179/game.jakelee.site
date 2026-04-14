@@ -68,7 +68,7 @@ import {
   tryPickupMushrooms,
 } from "./mario/entities/marioGamePowerups";
 import {
-  resolveMarioPlayerAxis,
+  resolveMarioPlayerCollisions,
   type PlayerColliderState,
 } from "./mario/player/marioGamePlayerResolve";
 import type {
@@ -84,7 +84,10 @@ import type {
   Rect,
   SolidRef,
 } from "./mario/core/marioGameTypes";
-import { marioPhysics } from "./mario/core/marioGameTypes";
+import {
+  MARIO_PHYSICS_STEP_MS,
+  marioPhysics,
+} from "./mario/core/marioGameTypes";
 
 export class ShadowDashGame {
   public app: Application;
@@ -136,6 +139,8 @@ export class ShadowDashGame {
   private frozen = false;
 
   private lastHudEmit = 0;
+  /** 与 NES 60Hz 对齐的固定物理累加器（避免高刷屏下位移/碰撞放大） */
+  private physicsAccumMs = 0;
   public onHudUpdate?: (s: MarioHudState) => void;
   public onLevelComplete?: () => void;
   public onGameOver?: () => void;
@@ -265,7 +270,7 @@ export class ShadowDashGame {
     };
   }
 
-  private resolvePlayerAxis(horizontal: boolean) {
+  private resolvePlayerCollisions() {
     const pw = this.pw();
     const ph = this.ph();
     const p: PlayerColliderState = {
@@ -275,7 +280,7 @@ export class ShadowDashGame {
       vy: this.vy,
       isGrounded: this.isGrounded,
     };
-    resolveMarioPlayerAxis(horizontal, p, {
+    resolveMarioPlayerCollisions(p, {
       pw,
       ph,
       solids: this.solids,
@@ -292,6 +297,117 @@ export class ShadowDashGame {
     this.vx = p.vx;
     this.vy = p.vy;
     this.isGrounded = p.isGrounded;
+  }
+
+  private simulatePhysicsSubstep(opts: {
+    left: boolean;
+    right: boolean;
+    jumpHeld: boolean;
+    queueJumpFromEdge: boolean;
+    touchAnalog: number;
+  }): void {
+    const { left, right, jumpHeld, queueJumpFromEdge, touchAnalog } = opts;
+
+    if (queueJumpFromEdge && this.isGrounded) {
+      this.jumpQueued = true;
+    }
+
+    const input = (right ? 1 : 0) - (left ? 1 : 0);
+    if (input !== 0) {
+      this.facing = input > 0 ? 1 : -1;
+      if (this.vx * input < 0) {
+        this.vx +=
+          input *
+          marioPhysics.walkAccel *
+          marioPhysics.reverseAccelMult *
+          touchAnalog;
+      } else {
+        this.vx += input * marioPhysics.walkAccel * touchAnalog;
+      }
+      if (Math.abs(this.vx) > marioPhysics.walkMax) {
+        this.vx = Math.sign(this.vx) * marioPhysics.walkMax;
+      }
+    } else {
+      const slip = Math.min(Math.abs(this.vx), marioPhysics.friction);
+      this.vx -= Math.sign(this.vx || 1) * slip;
+      if (Math.abs(this.vx) < 0.04) this.vx = 0;
+    }
+
+    if (this.jumpQueued && this.isGrounded) {
+      this.vy = marioPhysics.jumpVel;
+      this.isGrounded = false;
+      this.jumpQueued = false;
+      this.jumpCutDone = false;
+    }
+
+    if (this.vy < marioPhysics.jumpGravityBlendVy && jumpHeld) {
+      this.vy += marioPhysics.gravityRiseHeld;
+    } else if (this.vy < 0) {
+      this.vy += marioPhysics.gravityRise;
+    } else {
+      this.vy += marioPhysics.gravityFall;
+    }
+
+    if (!jumpHeld && !this.jumpCutDone && this.vy < -2.85) {
+      this.vy *= marioPhysics.jumpCut;
+      this.jumpCutDone = true;
+    }
+    if (this.vy > marioPhysics.maxFallVel) {
+      this.vy = marioPhysics.maxFallVel;
+    }
+
+    this.player.x += this.vx;
+    this.player.y += this.vy;
+    this.isGrounded = false;
+    this.resolvePlayerCollisions();
+
+    if (this.isGrounded) {
+      this.jumpCutDone = false;
+    }
+
+    for (const g of this.goombas) {
+      this.moveGoomba(g);
+    }
+
+    for (const k of this.koopas) {
+      this.moveKoopa(k);
+    }
+
+    for (const m of this.mushrooms) {
+      moveMushroomEntity(m, this.solids, levelData.height + 60);
+    }
+
+    this.processEnemyCollisions();
+    checkPiranhaPlantHits(
+      this.piranhas,
+      this.animTick,
+      this.player.x,
+      this.player.y,
+      this.pw(),
+      this.ph(),
+      {
+        won: this.won,
+        frozen: this.frozen,
+        deathSequenceMs: this.deathSequenceMs,
+        iframes: this.iframes,
+        flagSliding: this.flagSliding,
+      },
+      () => this.hitByEnemy(),
+    );
+    if (!this.flagSliding) {
+      const pick = tryPickupMushrooms(
+        this.mushrooms,
+        this.player.x,
+        this.player.y,
+        this.pw(),
+        this.ph(),
+        this.isBig,
+        this.player.y,
+      );
+      this.score += pick.scoreAdd;
+      this.isBig = pick.isBig;
+      this.player.y = pick.playerY;
+    }
   }
 
   private rebuildBlockSolids() {
@@ -534,103 +650,34 @@ export class ShadowDashGame {
       this.keys["Space"] || this.keys["ArrowUp"] || this.keys["KeyW"] || t.jump;
 
     const jumpEdge = jumpHeld && !this.prevJump;
-    this.prevJump = jumpHeld;
-
-    if (jumpEdge && this.isGrounded) {
-      this.jumpQueued = true;
-    }
 
     const kbOnlyLeft = this.keys["ArrowLeft"] || this.keys["KeyA"];
     const kbOnlyRight = this.keys["ArrowRight"] || this.keys["KeyD"];
-    const input = (right ? 1 : 0) - (left ? 1 : 0);
     const touchAnalog =
       !kbOnlyLeft && !kbOnlyRight && Math.abs(t.axisX) > stickDead
         ? Math.min(1, Math.abs(t.axisX))
         : 1;
-    if (input !== 0) {
-      this.facing = input > 0 ? 1 : -1;
-      this.vx += input * marioPhysics.walkAccel * touchAnalog;
-      if (Math.abs(this.vx) > marioPhysics.walkMax) {
-        this.vx = Math.sign(this.vx) * marioPhysics.walkMax;
-      }
-      if (this.vx * input < 0) {
-        this.vx += input * marioPhysics.walkAccel * 0.55 * touchAnalog;
-      }
-    } else {
-      const slip = Math.min(Math.abs(this.vx), marioPhysics.friction);
-      this.vx -= Math.sign(this.vx || 1) * slip;
-      if (Math.abs(this.vx) < 0.04) this.vx = 0;
+
+    this.physicsAccumMs += ticker.deltaMS;
+    const maxPhysicsSteps = 6;
+    let physicsSteps = 0;
+    while (
+      this.physicsAccumMs >= MARIO_PHYSICS_STEP_MS &&
+      physicsSteps < maxPhysicsSteps
+    ) {
+      this.physicsAccumMs -= MARIO_PHYSICS_STEP_MS;
+      physicsSteps++;
+      this.simulatePhysicsSubstep({
+        left,
+        right,
+        jumpHeld,
+        queueJumpFromEdge: physicsSteps === 1 && jumpEdge,
+        touchAnalog,
+      });
     }
 
-    if (this.jumpQueued && this.isGrounded) {
-      this.vy = marioPhysics.jumpVel;
-      this.isGrounded = false;
-      this.jumpQueued = false;
-      this.jumpCutDone = false;
-    }
+    this.prevJump = jumpHeld;
 
-    this.vy += marioPhysics.gravity;
-    if (!jumpHeld && !this.jumpCutDone && this.vy < -3) {
-      this.vy *= marioPhysics.jumpCut;
-      this.jumpCutDone = true;
-    }
-    const maxFall = 14;
-    if (this.vy > maxFall) this.vy = maxFall;
-
-    this.player.x += this.vx;
-    this.resolvePlayerAxis(true);
-
-    this.player.y += this.vy;
-    this.isGrounded = false;
-    this.resolvePlayerAxis(false);
-
-    if (this.isGrounded) {
-      this.jumpCutDone = false;
-    }
-
-    for (const g of this.goombas) {
-      this.moveGoomba(g);
-    }
-
-    for (const k of this.koopas) {
-      this.moveKoopa(k);
-    }
-
-    for (const m of this.mushrooms) {
-      moveMushroomEntity(m, this.solids, levelData.height + 60);
-    }
-
-    this.processEnemyCollisions();
-    checkPiranhaPlantHits(
-      this.piranhas,
-      this.animTick,
-      this.player.x,
-      this.player.y,
-      this.pw(),
-      this.ph(),
-      {
-        won: this.won,
-        frozen: this.frozen,
-        deathSequenceMs: this.deathSequenceMs,
-        iframes: this.iframes,
-        flagSliding: this.flagSliding,
-      },
-      () => this.hitByEnemy(),
-    );
-    if (!this.flagSliding) {
-      const pick = tryPickupMushrooms(
-        this.mushrooms,
-        this.player.x,
-        this.player.y,
-        this.pw(),
-        this.ph(),
-        this.isBig,
-        this.player.y,
-      );
-      this.score += pick.scoreAdd;
-      this.isBig = pick.isBig;
-      this.player.y = pick.playerY;
-    }
     tickFloatingCoinsAnim(this.floatingCoins, this.animTick);
     const coinHud = { coins: this.coins, score: this.score, lives: this.lives };
     tryCollectFloatingCoins(

@@ -14,6 +14,23 @@ export function rectsOverlap(
   return ax < b.x + b.w && ax + aw > b.x && ay < b.y + b.h && ay + ah > b.y;
 }
 
+/** 玩家与固体：脚底与平台顶「贴住」也算重叠，避免严格 AABB 漏检导致穿地。 */
+export function rectsPlayerVsSolid(
+  px: number,
+  py: number,
+  pw: number,
+  ph: number,
+  b: Rect,
+): boolean {
+  const floorSlop = 1.25;
+  return (
+    px < b.x + b.w &&
+    px + pw > b.x &&
+    py < b.y + b.h &&
+    py + ph > b.y - floorSlop
+  );
+}
+
 export function resolveMobHorizontal(
   m: MobBody,
   w: number,

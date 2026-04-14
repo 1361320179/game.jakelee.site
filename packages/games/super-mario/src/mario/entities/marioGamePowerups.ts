@@ -21,7 +21,7 @@ export function moveMushroomEntity(
   fallOffY: number,
 ): void {
   if (!m.alive) return;
-  m.vy += marioPhysics.gravity;
+  m.vy += marioPhysics.entityGravity;
   m.x += m.vx;
   resolveMushroomHorizontal(m, solids);
   m.y += m.vy;

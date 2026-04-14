@@ -101,15 +101,33 @@ export type DeathParticle = {
   life: number;
 };
 
+/**
+ * SMB1 风格：水平加速度/摩擦接近 1.5px/f、0.0547px/f² 在 16px 砖下的 2× 缩放；
+ * 竖直方向用「起跳按住时较小重力、下落/松键较大重力」近似原版滞空与落地感。
+ */
 export const marioPhysics = {
-  walkAccel: 0.34,
-  walkMax: 3.45,
-  friction: 0.36,
-  gravity: 0.52,
-  jumpVel: -12.8,
-  jumpCut: 0.52,
-  stompBounce: -6.2,
+  walkAccel: 0.11,
+  walkMax: 3.0,
+  friction: 0.11,
+  /** 反向输入时的额外减速（近似原版 skid） */
+  reverseAccelMult: 2.35,
+  gravityRiseHeld: 0.24,
+  gravityRise: 0.38,
+  gravityFall: 0.62,
+  /** vy 高于此值（负得较少）时视为已过顶点附近，用较大重力 */
+  jumpGravityBlendVy: -3.25,
+  jumpVel: -10.15,
+  /** 松开跳跃键时对上升速度的衰减（仍略保留短跳） */
+  jumpCut: 0.42,
+  stompBounce: -5.45,
+  maxFallVel: 8.75,
   goombaSpeed: 0.78,
   koopaWalkSpeed: 0.72,
   shellSlideSpeed: 4.25,
+  /** 敌人、蘑菇等：单一大小的下落加速度 */
+  entityGravity: 0.62,
 } as const;
+
+/** 与原版 NES 60Hz 对齐的固定物理步长（秒） */
+export const MARIO_PHYSICS_HZ = 60;
+export const MARIO_PHYSICS_STEP_MS = 1000 / MARIO_PHYSICS_HZ;

@@ -19,7 +19,7 @@ export function moveGoombaEntity(
 ): void {
   if (!g.alive) return;
 
-  g.vy += marioPhysics.gravity;
+  g.vy += marioPhysics.entityGravity;
   g.x += g.vx;
   resolveMobHorizontal(g, GOOMBA_W, GOOMBA_H, solids);
 
@@ -46,7 +46,7 @@ export function moveKoopaEntity(
   let scoreAdd = 0;
   if (!k.alive) return scoreAdd;
 
-  k.vy += marioPhysics.gravity;
+  k.vy += marioPhysics.entityGravity;
   k.x += k.vx;
   resolveMobHorizontal(k, KOOPA_W, KOOPA_H, solids);
   k.y += k.vy;

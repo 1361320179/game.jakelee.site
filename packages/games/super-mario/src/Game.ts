@@ -167,6 +167,10 @@ export class ShadowDashGame {
 
     container.appendChild(this.app.canvas);
     this.smbTextures = createSmb1TextureSet();
+    this.app.stage.sortableChildren = true;
+    this.bgLayer.zIndex = 0;
+    this.world.zIndex = 1;
+    this.uiLayer.zIndex = 10;
     this.app.stage.addChild(this.bgLayer);
     this.app.stage.addChild(this.world);
     this.app.stage.addChild(this.uiLayer);
@@ -178,6 +182,12 @@ export class ShadowDashGame {
 
     this.mobileTouch = new MarioMobileTouchUi(this.app, this.uiLayer);
     this.mobileTouch.init(this.container);
+    requestAnimationFrame(() => {
+      this.mobileTouch.scheduleLayout();
+      requestAnimationFrame(() => this.mobileTouch.scheduleLayout());
+    });
+    window.setTimeout(() => this.mobileTouch.scheduleLayout(), 200);
+    window.setTimeout(() => this.mobileTouch.scheduleLayout(), 500);
 
     this.emitHud(true);
 

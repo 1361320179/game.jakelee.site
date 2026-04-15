@@ -26,11 +26,17 @@ const jumpLabelStyle = new TextStyle({
 
 function useMobileTouchUi(): boolean {
   if (typeof window === "undefined") return false;
-  const desktopLike =
+  if (navigator.maxTouchPoints > 0) return true;
+  if ("ontouchstart" in window) return true;
+  if (window.matchMedia("(pointer: coarse)").matches) return true;
+  /** 典型键鼠桌面；横屏平板若误报 fine+hover，上面 maxTouchPoints 已放行 */
+  if (
     window.matchMedia("(pointer: fine)").matches &&
-    window.matchMedia("(hover: hover)").matches;
-  if (desktopLike) return false;
-  return "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    window.matchMedia("(hover: hover)").matches
+  ) {
+    return false;
+  }
+  return true;
 }
 
 type StickRefs = {
@@ -63,6 +69,8 @@ export class MarioMobileTouchUi {
   private resizeUiHandler: (() => void) | null = null;
   private containerResizeObs: ResizeObserver | null = null;
   private canvasPointerDownCapture: ((ev: PointerEvent) => void) | null = null;
+  private viewportSyncCleanup: (() => void) | null = null;
+  private hostEl: HTMLElement | null = null;
 
   constructor(app: Application, uiLayer: Container) {
     this.app = app;
@@ -70,6 +78,7 @@ export class MarioMobileTouchUi {
   }
 
   init(container: HTMLElement): void {
+    this.hostEl = container;
     this.setupVirtualJoystick();
     this.containerResizeObs = new ResizeObserver(() => {
       this.resizeUiHandler?.();
@@ -77,10 +86,38 @@ export class MarioMobileTouchUi {
     this.containerResizeObs.observe(container);
   }
 
+  /** 宿主布局就绪后再算一次（横屏 / 手动旋转后首帧常晚于 Pixi init） */
+  scheduleLayout(): void {
+    this.resizeUiHandler?.();
+  }
+
+  private readLayoutWidthHeight(): { w: number; h: number } {
+    let w = this.app.screen.width;
+    let h = this.app.screen.height;
+    const rw = this.app.renderer.width;
+    const rh = this.app.renderer.height;
+    if (w < 2 || h < 2) {
+      w = rw;
+      h = rh;
+    }
+    const el = this.hostEl;
+    if ((w < 2 || h < 2) && el) {
+      const cw = el.clientWidth;
+      const ch = el.clientHeight;
+      if (cw >= 2 && ch >= 2) {
+        w = cw;
+        h = ch;
+      }
+    }
+    return { w, h };
+  }
+
   destroy(): void {
     this.clearStickDragListeners();
     this.containerResizeObs?.disconnect();
     this.containerResizeObs = null;
+    this.viewportSyncCleanup?.();
+    this.viewportSyncCleanup = null;
     if (this.resizeUiHandler) {
       window.removeEventListener("resize", this.resizeUiHandler);
       this.resizeUiHandler = null;
@@ -245,12 +282,17 @@ export class MarioMobileTouchUi {
     const jumpR = 50;
 
     const resizeUI = () => {
+      const { w, h } = this.readLayoutWidthHeight();
+      /** 仅当确实没有画布尺寸时才跳过；不要用过大阈值，否则小视口或 dpr 下永远不建 UI */
+      if (w < 2 || h < 2) {
+        return;
+      }
+
       this.clearStickDragListeners();
       this.uiLayer.removeChildren();
 
-      const w = this.app.screen.width;
-      const h = this.app.screen.height;
-      const pad = Math.max(14, Math.min(26, w * 0.035));
+      const landscape = w > h;
+      const pad = Math.max(landscape ? 20 : 14, Math.min(26, w * 0.035));
       const safeBottom =
         typeof CSS !== "undefined" &&
         typeof CSS.supports === "function" &&
@@ -326,6 +368,24 @@ export class MarioMobileTouchUi {
     resizeUI();
     this.resizeUiHandler = resizeUI;
     window.addEventListener("resize", resizeUI);
+
+    const nudgeLayout = () => {
+      resizeUI();
+      requestAnimationFrame(resizeUI);
+    };
+    window.addEventListener("orientationchange", nudgeLayout);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", nudgeLayout);
+    this.viewportSyncCleanup = () => {
+      window.removeEventListener("orientationchange", nudgeLayout);
+      vv?.removeEventListener("resize", nudgeLayout);
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(nudgeLayout);
+    });
+    window.setTimeout(nudgeLayout, 160);
+    window.setTimeout(nudgeLayout, 420);
 
     if (!this.canvasPointerDownCapture) {
       this.canvasPointerDownCapture = this.onCanvasPointerDownCapture;

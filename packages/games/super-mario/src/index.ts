@@ -3,11 +3,11 @@
  * 同时只允许一个活跃实例，避免重复 init。
  */
 import type { MarioHudState } from "./mario/core/marioGameTypes";
-import { ShadowDashGame } from "./Game";
+import { SuperMarioGame } from "./Game";
 
 export type { MarioHudState };
 
-let activeGame: ShadowDashGame | null = null;
+let activeGame: SuperMarioGame | null = null;
 
 export const mountGame = async (
   containerId: string,
@@ -23,7 +23,7 @@ export const mountGame = async (
     return;
   }
 
-  activeGame = new ShadowDashGame();
+  activeGame = new SuperMarioGame();
   if (callbacks) {
     activeGame.onHudUpdate = callbacks.onHudUpdate;
     activeGame.onLevelComplete = callbacks.onLevelComplete;
@@ -31,13 +31,13 @@ export const mountGame = async (
   }
 
   await activeGame.init(container);
-  console.log(`Mounted Shadow Dash game to ${containerId}`);
+  console.log(`Mounted Super Mario game to ${containerId}`);
 };
 
 export const unmountGame = () => {
   if (activeGame) {
     activeGame.destroy();
     activeGame = null;
-    console.log("Unmounted Shadow Dash game");
+    console.log("Unmounted Super Mario game");
   }
 };

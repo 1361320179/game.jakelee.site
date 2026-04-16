@@ -1,7 +1,7 @@
 {
   "id": "super-mario",
-  "title": "Shadow Dash",
-  "description": "A fast-paced platformer with dash mechanics.",
+  "title": "Super Mario",
+  "description": "A Mario homage remake for the web — SMB1-style platforming.",
   "coverImage": "/images/super-mario-cover.jpg",
   "releaseDate": "2026-04-10"
 }

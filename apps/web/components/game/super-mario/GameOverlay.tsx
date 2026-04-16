@@ -10,7 +10,7 @@ interface GameOverlayProps {
   timeElapsed?: number;
   dashCooldownProgress?: number;
   showPrompts?: boolean;
-  /** SMB-style HUD when playing Shadow Dash L1 */
+  /** SMB-style HUD when playing the Super Mario homage build */
   marioHud?: MarioHudState | null;
 }
 

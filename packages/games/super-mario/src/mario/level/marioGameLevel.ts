@@ -1,5 +1,5 @@
 /**
- * 关卡静态几何与敌人初始摆放（与 ShadowDashGame 拆分）。
+ * 关卡静态几何与敌人初始摆放（与 SuperMarioGame 拆分）。
  */
 import { Container } from "pixi.js";
 import levelData from "../../../../../content/games/super-mario/levels/level-1.json";

@@ -1,5 +1,5 @@
 /**
- * Shadow Dash 卡通风格矢量素材：天空、地形、机关与玩家均由 Graphics 绘制。
+ * Super Mario（超级马里奥）卡通风格矢量素材：天空、地形、机关与玩家均由 Graphics 绘制。
  * 配色集中在 C 对象，便于统一调整画风。
  */
 import { Container, Graphics } from "pixi.js";

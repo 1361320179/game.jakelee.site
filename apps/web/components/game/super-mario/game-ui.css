@@ -1,4 +1,4 @@
-/* Shadow Dash — cartoon HUD (Fredoka + soft panels) */
+/* Super Mario — cartoon HUD (Fredoka + soft panels) */
 
 .game-overlay {
   position: absolute;
@@ -336,7 +336,7 @@
   }
 }
 
-/* SMB-style HUD (Shadow Dash L1 homage) */
+/* SMB-style HUD (Super Mario homage) */
 .game-overlay--mario {
   color: #f8e888;
   font-family: var(--font-press-start-2p), "Consolas", "Courier New", monospace;

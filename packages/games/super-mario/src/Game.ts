@@ -1,5 +1,5 @@
 /**
- * Shadow Dash L1 — SMB1 World 1-1 style homage (original fan pixel art + vectors, not Nintendo ROM assets).
+ * Super Mario（超级马里奥）— SMB1 World 1-1 风格致敬复刻（原创同人像素与矢量素材，非任天堂 ROM）。
  * Walk / jump / stomp / ? blocks / flag; no dash. 关卡与系统逻辑见 `mario/` 下按功能分类的模块。
  */
 import { Application, Container, Ticker } from "pixi.js";
@@ -90,7 +90,7 @@ import {
   marioPhysics,
 } from "./mario/core/marioGameTypes";
 
-export class ShadowDashGame {
+export class SuperMarioGame {
   public app: Application;
   private container!: HTMLElement;
   private bgLayer: Container;

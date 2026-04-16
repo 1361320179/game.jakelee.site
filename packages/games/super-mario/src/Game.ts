@@ -68,7 +68,8 @@ import {
   tryPickupMushrooms,
 } from "./mario/entities/marioGamePowerups";
 import {
-  resolveMarioPlayerCollisions,
+  resolveMarioPlayerHorizontalCollisions,
+  resolveMarioPlayerVerticalCollisions,
   type PlayerColliderState,
 } from "./mario/player/marioGamePlayerResolve";
 import type {
@@ -280,9 +281,7 @@ export class ShadowDashGame {
     };
   }
 
-  private resolvePlayerCollisions() {
-    const pw = this.pw();
-    const ph = this.ph();
+  private resolvePlayerHorizontalCollisions() {
     const p: PlayerColliderState = {
       x: this.player.x,
       y: this.player.y,
@@ -290,9 +289,9 @@ export class ShadowDashGame {
       vy: this.vy,
       isGrounded: this.isGrounded,
     };
-    resolveMarioPlayerCollisions(p, {
-      pw,
-      ph,
+    resolveMarioPlayerHorizontalCollisions(p, {
+      pw: this.pw(),
+      ph: this.ph(),
       solids: this.solids,
       blocks: this.blocks,
       tile: TILE,
@@ -303,8 +302,30 @@ export class ShadowDashGame {
       },
     });
     this.player.x = p.x;
-    this.player.y = p.y;
     this.vx = p.vx;
+  }
+
+  private resolvePlayerVerticalCollisions() {
+    const p: PlayerColliderState = {
+      x: this.player.x,
+      y: this.player.y,
+      vx: this.vx,
+      vy: this.vy,
+      isGrounded: this.isGrounded,
+    };
+    resolveMarioPlayerVerticalCollisions(p, {
+      pw: this.pw(),
+      ph: this.ph(),
+      solids: this.solids,
+      blocks: this.blocks,
+      tile: TILE,
+      onHeadHitSolidBlock: (id) => hitBlockFromBelow(id, this.getBlockWorld()),
+      rebuildBlockSolids: () => this.rebuildBlockSolids(),
+      onHiddenBlockHeadBump: (id) => {
+        hitBlockFromBelow(id, this.getBlockWorld());
+      },
+    });
+    this.player.y = p.y;
     this.vy = p.vy;
     this.isGrounded = p.isGrounded;
   }
@@ -367,9 +388,10 @@ export class ShadowDashGame {
     }
 
     this.player.x += this.vx;
+    this.resolvePlayerHorizontalCollisions();
     this.player.y += this.vy;
     this.isGrounded = false;
-    this.resolvePlayerCollisions();
+    this.resolvePlayerVerticalCollisions();
 
     if (this.isGrounded) {
       this.jumpCutDone = false;

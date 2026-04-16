@@ -53,7 +53,8 @@ type TouchZones = {
   stickR: number;
   jumpCx: number;
   jumpCy: number;
-  jumpR: number;
+  jumpHitHalfW: number;
+  jumpHitHalfH: number;
 };
 
 export class MarioMobileTouchUi {
@@ -71,7 +72,7 @@ export class MarioMobileTouchUi {
   private canvasPointerDownCapture: ((ev: PointerEvent) => void) | null = null;
   private viewportSyncCleanup: (() => void) | null = null;
   private parentResizeObs: ResizeObserver | null = null;
-  private resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private resizeDebounceTimer: ReturnType<typeof window.setTimeout> | null = null;
   private hostEl: HTMLElement | null = null;
 
   private readonly onWindowResizeQueued = (): void => {
@@ -244,8 +245,10 @@ export class MarioMobileTouchUi {
     const p = this.clientToScreen(ev.clientX, ev.clientY);
     const z = this.mobileZones;
 
-    const dj = Math.hypot(p.x - z.jumpCx, p.y - z.jumpCy);
-    if (dj <= z.jumpR) {
+    const inJumpBounds =
+      Math.abs(p.x - z.jumpCx) <= z.jumpHitHalfW &&
+      Math.abs(p.y - z.jumpCy) <= z.jumpHitHalfH;
+    if (inJumpBounds) {
       ev.preventDefault();
       ev.stopImmediatePropagation();
       try {
@@ -328,6 +331,7 @@ export class MarioMobileTouchUi {
     const maxDrag = 34;
     const deadPx = 10;
     const jumpR = 50;
+    const jumpHitPad = 14;
 
     const resizeUI = () => {
       const { w, h } = this.readLayoutWidthHeight();
@@ -383,7 +387,8 @@ export class MarioMobileTouchUi {
         stickR: outerR + 14,
         jumpCx: w - pad - jumpR,
         jumpCy: bottomY + outerR * 2 - jumpR,
-        jumpR,
+        jumpHitHalfW: jumpR + jumpHitPad,
+        jumpHitHalfH: jumpR + jumpHitPad,
       };
 
       this.uiLayer.addChild(joystickRoot);

@@ -169,6 +169,7 @@ export type PlayerVisual = {
 export function createMarioPlayerVisual(tex: Smb1TextureSet): PlayerVisual {
   const root = new Container();
   const sprite = new Sprite(tex.marioSmall[0]);
+  sprite.anchor.set(0.5, 0);
   root.addChild(sprite);
   return { root, sprite };
 }
@@ -195,7 +196,8 @@ export function syncMarioPlayer(
   const h = big ? PLAYER_BIG_H : PLAYER_H;
   const nw = vis.sprite.texture.width;
   const nh = vis.sprite.texture.height;
-  vis.sprite.scale.x = facing * (w / nw);
+  vis.sprite.position.set(w / 2, 0);
+  vis.sprite.scale.x = -facing * (w / nw);
   vis.sprite.scale.y = h / nh;
 }
 

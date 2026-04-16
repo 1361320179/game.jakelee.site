@@ -70,7 +70,17 @@ export class MarioMobileTouchUi {
   private containerResizeObs: ResizeObserver | null = null;
   private canvasPointerDownCapture: ((ev: PointerEvent) => void) | null = null;
   private viewportSyncCleanup: (() => void) | null = null;
+  private parentResizeObs: ResizeObserver | null = null;
+  private resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private hostEl: HTMLElement | null = null;
+
+  private readonly onWindowResizeQueued = (): void => {
+    this.queueTouchUiResize();
+  };
+
+  private readonly onPageShowForLayout = (): void => {
+    this.bumpTouchUiResize();
+  };
 
   constructor(app: Application, uiLayer: Container) {
     this.app = app;
@@ -81,14 +91,37 @@ export class MarioMobileTouchUi {
     this.hostEl = container;
     this.setupVirtualJoystick();
     this.containerResizeObs = new ResizeObserver(() => {
-      this.resizeUiHandler?.();
+      this.queueTouchUiResize();
     });
     this.containerResizeObs.observe(container);
+    const parent = container.parentElement;
+    if (parent) {
+      this.parentResizeObs = new ResizeObserver(() => {
+        this.queueTouchUiResize();
+      });
+      this.parentResizeObs.observe(parent);
+    }
   }
 
-  /** 宿主布局就绪后再算一次（横屏 / 手动旋转后首帧常晚于 Pixi init） */
+  /** 宿主布局就绪后再算一次（横屏 / 手动旋转 / 微信全屏后常晚于 Pixi） */
   scheduleLayout(): void {
+    this.bumpTouchUiResize();
+  }
+
+  private queueTouchUiResize(): void {
+    if (this.resizeDebounceTimer != null) {
+      clearTimeout(this.resizeDebounceTimer);
+    }
+    this.resizeDebounceTimer = window.setTimeout(() => {
+      this.resizeDebounceTimer = null;
+      this.resizeUiHandler?.();
+    }, 130);
+  }
+
+  /** 立即一帧 + 防抖再算，避免微信里连发 0 尺寸 resize 把控件清空后不再建 */
+  private bumpTouchUiResize(): void {
     this.resizeUiHandler?.();
+    this.queueTouchUiResize();
   }
 
   private readLayoutWidthHeight(): { w: number; h: number } {
@@ -99,6 +132,14 @@ export class MarioMobileTouchUi {
     if (w < 2 || h < 2) {
       w = rw;
       h = rh;
+    }
+    const canvas = this.app.canvas;
+    if ((w < 2 || h < 2) && canvas) {
+      const br = canvas.getBoundingClientRect();
+      if (br.width >= 2 && br.height >= 2) {
+        w = br.width;
+        h = br.height;
+      }
     }
     const el = this.hostEl;
     if ((w < 2 || h < 2) && el) {
@@ -114,12 +155,19 @@ export class MarioMobileTouchUi {
 
   destroy(): void {
     this.clearStickDragListeners();
+    if (this.resizeDebounceTimer != null) {
+      clearTimeout(this.resizeDebounceTimer);
+      this.resizeDebounceTimer = null;
+    }
     this.containerResizeObs?.disconnect();
     this.containerResizeObs = null;
+    this.parentResizeObs?.disconnect();
+    this.parentResizeObs = null;
     this.viewportSyncCleanup?.();
     this.viewportSyncCleanup = null;
+    window.removeEventListener("resize", this.onWindowResizeQueued);
+    window.removeEventListener("pageshow", this.onPageShowForLayout);
     if (this.resizeUiHandler) {
-      window.removeEventListener("resize", this.resizeUiHandler);
       this.resizeUiHandler = null;
     }
     if (this.canvasPointerDownCapture && this.app.canvas) {
@@ -365,13 +413,13 @@ export class MarioMobileTouchUi {
       this.uiLayer.addChild(jumpWrap);
     };
 
-    resizeUI();
     this.resizeUiHandler = resizeUI;
-    window.addEventListener("resize", resizeUI);
+    resizeUI();
+    window.addEventListener("resize", this.onWindowResizeQueued);
+    window.addEventListener("pageshow", this.onPageShowForLayout);
 
     const nudgeLayout = () => {
-      resizeUI();
-      requestAnimationFrame(resizeUI);
+      this.bumpTouchUiResize();
     };
     window.addEventListener("orientationchange", nudgeLayout);
     const vv = window.visualViewport;
@@ -381,6 +429,7 @@ export class MarioMobileTouchUi {
       vv?.removeEventListener("resize", nudgeLayout);
     };
 
+    this.bumpTouchUiResize();
     requestAnimationFrame(() => {
       requestAnimationFrame(nudgeLayout);
     });

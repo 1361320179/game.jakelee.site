@@ -205,17 +205,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
   }, []);
 
-  /** 手动横屏切换布局后，部分环境不会触发 window resize，推一把 Pixi / 触控 UI */
+  /**
+   * 手动横屏（CSS 旋转 + 全屏）后，华为微信等 WebView 常漏发或不连续发 resize；
+   * 在一段时间内多次触发 resize，让 Pixi resizeTo 与虚拟键防抖布局有机会跟上。
+   */
   useEffect(() => {
-    let alive = true;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (alive) window.dispatchEvent(new Event("resize"));
-      });
-    });
-    return () => {
-      alive = false;
-    };
+    if (!manualLandscape) return;
+    const nudgeResize = () => window.dispatchEvent(new Event("resize"));
+    nudgeResize();
+    const delaysMs = [50, 120, 250, 400, 650, 1000, 1600, 2400];
+    const ids = delaysMs.map((ms) => window.setTimeout(nudgeResize, ms));
+    return () => ids.forEach((id) => window.clearTimeout(id));
   }, [manualLandscape]);
 
   useEffect(() => {

@@ -72,7 +72,8 @@ export class MarioMobileTouchUi {
   private canvasPointerDownCapture: ((ev: PointerEvent) => void) | null = null;
   private viewportSyncCleanup: (() => void) | null = null;
   private parentResizeObs: ResizeObserver | null = null;
-  private resizeDebounceTimer: ReturnType<typeof window.setTimeout> | null = null;
+  /** 浏览器定时器 id（number）；避免与 NodeJS.Timeout 在联合类型里冲突导致 Next 构建失败 */
+  private resizeDebounceTimer: number | null = null;
   private hostEl: HTMLElement | null = null;
 
   private readonly onWindowResizeQueued = (): void => {

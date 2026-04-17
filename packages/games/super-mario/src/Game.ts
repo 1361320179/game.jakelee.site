@@ -673,15 +673,20 @@ export class SuperMarioGame {
     if (this.iframes > 0) this.iframes--;
 
     const t = this.mobileTouch.touch;
+    const jumpTapBuffered = this.mobileTouch.consumeBufferedJumpTap();
     const stickDead = 0.14;
     const touchLeft = t.axisX < -stickDead;
     const touchRight = t.axisX > stickDead;
     const left = this.keys["ArrowLeft"] || this.keys["KeyA"] || touchLeft;
     const right = this.keys["ArrowRight"] || this.keys["KeyD"] || touchRight;
     const jumpHeld =
-      this.keys["Space"] || this.keys["ArrowUp"] || this.keys["KeyW"] || t.jump;
+      this.keys["Space"] ||
+      this.keys["ArrowUp"] ||
+      this.keys["KeyW"] ||
+      t.jump ||
+      jumpTapBuffered;
 
-    const jumpEdge = jumpHeld && !this.prevJump;
+    const jumpEdge = (jumpHeld && !this.prevJump) || jumpTapBuffered;
 
     const kbOnlyLeft = this.keys["ArrowLeft"] || this.keys["KeyA"];
     const kbOnlyRight = this.keys["ArrowRight"] || this.keys["KeyD"];

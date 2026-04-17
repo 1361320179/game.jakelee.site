@@ -60,6 +60,13 @@ type TouchZones = {
 export class MarioMobileTouchUi {
   readonly touch = { jump: false, axisX: 0 };
 
+  /**
+   * 极短点按会在两次 ticker 之间完成 pointerdown + pointerup，`touch.jump` 从未在
+   * `Game.update` 里为 true，导致边缘起跳丢失。pointerdown 时写入短时戳，由游戏
+   * 在首帧物理前 `consumeBufferedJumpTap()` 消费一次。
+   */
+  private jumpTapBufferExpireAt = 0;
+
   private readonly app: Application;
   private readonly uiLayer: Container;
 
@@ -108,6 +115,22 @@ export class MarioMobileTouchUi {
   /** 宿主布局就绪后再算一次（横屏 / 手动旋转 / 微信全屏后常晚于 Pixi） */
   scheduleLayout(): void {
     this.bumpTouchUiResize();
+  }
+
+  /**
+   * 若仍在缓冲窗口内则返回 true 并清除缓冲（每帧最多一次），用于与 `touch.jump`
+   * 组合成可靠的 `jumpHeld` / `jumpEdge`。
+   */
+  consumeBufferedJumpTap(): boolean {
+    const deadline = this.jumpTapBufferExpireAt;
+    if (deadline <= 0) return false;
+    const now = performance.now();
+    if (now >= deadline) {
+      this.jumpTapBufferExpireAt = 0;
+      return false;
+    }
+    this.jumpTapBufferExpireAt = 0;
+    return true;
   }
 
   private queueTouchUiResize(): void {
@@ -180,6 +203,7 @@ export class MarioMobileTouchUi {
     }
     this.mobileStickRefs = null;
     this.mobileZones = null;
+    this.jumpTapBufferExpireAt = 0;
   }
 
   private clearStickDragListeners() {
@@ -257,20 +281,24 @@ export class MarioMobileTouchUi {
       } catch {
         /* */
       }
+      this.jumpTapBufferExpireAt = performance.now() + 200;
       this.touch.jump = true;
+      const canvas = this.app.canvas;
       const up = (e: PointerEvent) => {
         if (e.pointerId !== ev.pointerId) return;
         this.touch.jump = false;
         try {
-          this.app.canvas.releasePointerCapture(ev.pointerId);
+          canvas.releasePointerCapture(ev.pointerId);
         } catch {
           /* */
         }
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
+        canvas.removeEventListener("lostpointercapture", up);
       };
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
+      canvas.addEventListener("lostpointercapture", up);
       return;
     }
 
